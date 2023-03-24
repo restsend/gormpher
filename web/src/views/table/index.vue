@@ -158,7 +158,7 @@ onMounted(async () => {
         <li>{{ state.name }}</li>
       </ul>
     </div>
-    <div class="w-full space-y-4 p-8 bg-gray-50 rounded-md">
+    <div class="wh-full space-y-4 p-8 bg-gray-50 rounded-md">
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-4">
@@ -236,162 +236,164 @@ onMounted(async () => {
         </button>
       </div>
 
-      <div class="relative wh-full overflow-x-auto overflow-y-hidden">
-        <!-- Bulk action -->
-        <div
-          v-if="selectedIds.length > 0"
-          class="absolute top-0 left-14 z-15 flex h-14 items-center space-x-3 sm:left-12"
-        >
-          <div class="left-14 dropdown dropdown-bottom">
-            <label tabindex="0" class="btn btn-circle btn-ghost btn-sm">
-              <button type="button" class="btn btn-sm">
-                Delete all
-              </button>
-            </label>
-            <div tabindex="0" class="card compact dropdown-content shadow bg-base-100 rounded-box w-54 mt-1">
-              <div class="card-body">
-                <h2 class="card-title text-red-500">
-                  <div class="i-clarity:error-line" />
-                  Error
-                </h2>
-                <p>Are you sure to delete all?</p>
-                <div class="card-actions justify-end">
-                  <button
-                    class="btn btn-xs btn-error"
-                    @click="handleBatch(selectedIds)"
-                  >
-                    OK
-                  </button>
+      <div class="wh-full overflow-x-auto">
+        <div class="relative">
+          <!-- Bulk action -->
+          <div
+            v-if="selectedIds.length > 0"
+            class="absolute top-0 left-14 z-99 flex h-16 items-center space-x-3 sm:left-12"
+          >
+            <div class="left-14 z-99 dropdown dropdown-bottom">
+              <label tabindex="0" class="btn btn-circle btn-ghost btn-sm">
+                <button type="button" class="btn btn-sm">
+                  Delete all
+                </button>
+              </label>
+              <div tabindex="0" class="card compact dropdown-content shadow bg-base-100 rounded-box w-54 mt-1">
+                <div class="card-body">
+                  <h2 class="card-title text-red-500">
+                    <div class="i-clarity:error-line" />
+                    Error
+                  </h2>
+                  <p>Are you sure to delete all?</p>
+                  <div class="card-actions justify-end">
+                    <button
+                      class="btn btn-xs btn-error"
+                      @click="handleBatch(selectedIds)"
+                    >
+                      OK
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <table class="table table-compact w-full text-sm">
-          <thead>
-            <tr>
+          <table class="table table-normal min-w-full h-full text-sm">
+            <thead>
+              <tr>
+                <template v-if="loading">
+                  <th :colspan="99">
+                    <div class="w-full f-c-c text-sm opacity-90">
+                      <div class="i-eos-icons:three-dots-loading text-2xl" />
+                    </div>
+                  </th>
+                </template>
+                <template v-else>
+                  <th>
+                    <input
+                      type="checkbox"
+                      class="checkbox"
+                      :checked="indeterminate || (selectedIds.length > 0 && selectedIds.length === list.length)"
+                      :indeterminate="indeterminate"
+                      @change="selectedIds = ($event.target as HTMLInputElement).checked ? list.map(e => e.id) : []"
+                    >
+                  </th>
+                  <th v-for="field of state.fields" :key="field">
+                    <div class="flex items-center space-x-1 cursor-default">
+                      <div v-if="canOrder(field)" class="flex flex-col">
+                        <div
+                          class="i-typcn:arrow-sorted-up transition-500 hover:scale-130"
+                          @click="handleOrder(field, 'asc')"
+                        />
+                        <div
+                          class="i-typcn:arrow-sorted-down transition-500 hover:scale-130"
+                          @click="handleOrder(field, 'desc')"
+                        />
+                      </div>
+                      <span> {{ field }} </span>
+                      <Badge :actions="getActions(field)" />
+                    </div>
+                  </th>
+                  <th />
+                </template>
+              </tr>
+            </thead>
+            <tbody>
               <template v-if="loading">
-                <th :colspan="99">
-                  <div class="w-full f-c-c text-sm opacity-90">
-                    <div class="i-eos-icons:three-dots-loading text-2xl" />
-                  </div>
-                </th>
+                <tr>
+                  <td :colspan="99">
+                    <div class="w-full f-c-c h-96 text-sm opacity-90">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><rect width="6" height="14" x="1" y="4" fill="#888888"><animate id="svgSpinnersBarsScaleFade0" fill="freeze" attributeName="y" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="9" y="4" fill="currentColor" opacity=".4"><animate fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="17" y="4" fill="currentColor" opacity=".3"><animate id="svgSpinnersBarsScaleFade1" fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;.2" /></rect></svg>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <template v-else-if="!list.length">
+                <tr>
+                  <td :colspan="99">
+                    <div class="f-c-c min-h-md bg-base-100">
+                      <!-- <div class="i-simple-icons:protodotio text-5xl" /> -->
+                      <span class="font-mono text-base-300 text-5xl select-none">
+                        Empty
+                      </span>
+                    </div>
+                  </td>
+                </tr>
               </template>
               <template v-else>
-                <th>
-                  <input
-                    type="checkbox"
-                    class="checkbox"
-                    :checked="indeterminate || (selectedIds.length > 0 && selectedIds.length === list.length)"
-                    :indeterminate="indeterminate"
-                    @change="selectedIds = ($event.target as HTMLInputElement).checked ? list.map(e => e.id) : []"
-                  >
-                </th>
-                <th v-for="field of state.fields" :key="field">
-                  <div class="flex items-center space-x-1 cursor-default">
-                    <div v-if="canOrder(field)" class="flex flex-col">
-                      <div
-                        class="i-typcn:arrow-sorted-up transition-500 hover:scale-130"
-                        @click="handleOrder(field, 'asc')"
-                      />
-                      <div
-                        class="i-typcn:arrow-sorted-down transition-500 hover:scale-130"
-                        @click="handleOrder(field, 'desc')"
-                      />
-                    </div>
-                    <span> {{ field }} </span>
-                    <Badge :actions="getActions(field)" />
-                  </div>
-                </th>
-                <th />
-              </template>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-if="loading">
-              <tr>
-                <td :colspan="99">
-                  <div class="w-full f-c-c h-96 text-sm opacity-90">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><rect width="6" height="14" x="1" y="4" fill="#888888"><animate id="svgSpinnersBarsScaleFade0" fill="freeze" attributeName="y" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="9" y="4" fill="currentColor" opacity=".4"><animate fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="17" y="4" fill="currentColor" opacity=".3"><animate id="svgSpinnersBarsScaleFade1" fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;.2" /></rect></svg>
-                  </div>
-                </td>
-              </tr>
-            </template>
-            <template v-else-if="!list.length">
-              <tr>
-                <td :colspan="99">
-                  <div class="f-c-c min-h-md bg-base-100">
-                    <!-- <div class="i-simple-icons:protodotio text-5xl" /> -->
-                    <span class="font-mono text-base-300 text-5xl select-none">
-                      Empty
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            </template>
-            <template v-else>
-              <tr v-for="item of list" :key="item.id" class="hover group">
-                <th>
-                  <input
-                    v-model="selectedIds"
-                    :value="item.id"
-                    type="checkbox"
-                    class="checkbox"
-                  >
-                </th>
-                <td v-for="field of state.fields" :key="field">
-                  <template v-if="field === 'createdAt' || field === 'updatedAt'">
-                    {{ formatDate(item[field]) }}
-                  </template>
-                  <template v-else-if="state.mapping[field] === 'boolean'">
-                    <Bool :value="item[field]" />
-                  </template>
-                  <template v-else>
-                    {{ item[field] }}
-                  </template>
-                </td>
-                <td class="py-0.5">
-                  <div class="invisible group-hover:visible">
-                    <div class="flex items-center space-x-4">
-                      <label class="btn btn-circle btn-ghost btn-sm">
-                        <button
-                          class="i-uiw:edit text-green-400 hover:text-green-400"
-                          @click="handleShowEdit(item)"
-                        />
-                      </label>
-                      <div class="dropdown dropdown-end">
-                        <label tabindex="0" class="btn btn-circle btn-ghost btn-sm">
-                          <button class="i-uiw:delete text-red-500 hover:text-red-500" />
+                <tr v-for="item of list" :key="item.id" class="hover group">
+                  <th>
+                    <input
+                      v-model="selectedIds"
+                      :value="item.id"
+                      type="checkbox"
+                      class="checkbox"
+                    >
+                  </th>
+                  <td v-for="field of state.fields" :key="field">
+                    <template v-if="field === 'createdAt' || field === 'updatedAt'">
+                      {{ formatDate(item[field]) }}
+                    </template>
+                    <template v-else-if="state.mapping[field] === 'boolean'">
+                      <Bool :value="item[field]" />
+                    </template>
+                    <template v-else>
+                      {{ item[field] }}
+                    </template>
+                  </td>
+                  <td class="py-0.5">
+                    <div class="invisible group-hover:visible">
+                      <div class="flex items-center space-x-4">
+                        <label class="btn btn-circle btn-ghost btn-sm">
+                          <button
+                            class="i-uiw:edit text-green-400 hover:text-green-400"
+                            @click="handleShowEdit(item)"
+                          />
                         </label>
-                        <div tabindex="0" class="card compact dropdown-content shadow bg-base-100 rounded-box w-54">
-                          <div class="card-body">
-                            <h2 class="card-title text-red-500">
-                              <div class="i-clarity:error-line" />
-                              Error
-                            </h2>
-                            <p>Are you sure to delete?</p>
-                            <div class="card-actions justify-end">
-                              <button
-                                class="btn btn-xs btn-error"
-                                @click="handleDelete(item.id)"
-                              >
-                                OK
-                              </button>
+                        <div class="dropdown dropdown-left">
+                          <label tabindex="0" class="btn btn-circle btn-ghost btn-sm">
+                            <button class="i-uiw:delete text-red-500 hover:text-red-500" />
+                          </label>
+                          <div tabindex="0" class="card compact dropdown-content shadow bg-base-100 rounded-box w-54">
+                            <div class="card-body">
+                              <h2 class="card-title text-red-500">
+                                <div class="i-clarity:error-line" />
+                                Error
+                              </h2>
+                              <p>Are you sure to delete?</p>
+                              <div class="card-actions justify-end">
+                                <button
+                                  class="btn btn-xs btn-error"
+                                  @click="handleDelete(item.id)"
+                                >
+                                  OK
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Pagination -->
-      <div class="flex items-center justify-between mx-1">
+      <div class="flex items-center justify-between pb-5">
         <div class="space-x-3">
           <span>
             Total: {{ total }}

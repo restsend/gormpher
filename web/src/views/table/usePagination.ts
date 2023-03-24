@@ -17,7 +17,7 @@ export default function usePagination({
   const currentPage = computed(() => 1 + pos.value / limit.value + (pos.value % limit.value))
 
   function handleNext() {
-    if (pos.value + limit.value > total.value)
+    if (total.value === 0 || pos.value + limit.value > total.value)
       return
     pos.value += limit.value
     callback()
