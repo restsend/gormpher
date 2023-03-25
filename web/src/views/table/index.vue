@@ -354,12 +354,12 @@ onMounted(async () => {
                   <td class="py-0.5">
                     <div class="invisible group-hover:visible">
                       <div class="flex items-center space-x-4">
-                        <label class="btn btn-circle btn-ghost btn-sm">
+                        <labele class="btn btn-circle btn-ghost btn-sm">
                           <button
                             class="i-uiw:edit text-green-400 hover:text-green-400"
                             @click="handleShowEdit(item)"
                           />
-                        </label>
+                        </labele>
                         <div class="dropdown dropdown-left">
                           <label tabindex="0" class="btn btn-circle btn-ghost btn-sm">
                             <button class="i-uiw:delete text-red-500 hover:text-red-500" />
@@ -429,7 +429,6 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-
     <!-- Edit Modal -->
     <input
       v-model="modalVisible"

@@ -20,14 +20,6 @@ type Product struct {
 	Enabled   bool      `json:"enabled"`
 }
 
-func (p *Product) BeforeCreate(tx *gorm.DB) (err error) {
-	if groupId, ok := tx.Get("groupId"); ok {
-		p.GroupID = groupId.(int)
-	}
-	p.UUID = MockUUID(8)
-	return
-}
-
 type User struct {
 	ID        uint       `json:"id" gorm:"primarykey"`
 	CreatedAt time.Time  `json:"createdAt"`
@@ -40,27 +32,29 @@ type User struct {
 
 func main() {
 	var dsn string
-	var webServerAddr string
-	var apiServerAddr string
+	var addr string
 
 	flag.StringVar(&dsn, "n", "", "DB DSN")
-	flag.StringVar(&webServerAddr, "web", ":5000", "Web Server Addr")
-	flag.StringVar(&apiServerAddr, "api", ":8890", "Api Server Addr")
+	flag.StringVar(&addr, "a", ":8890", "Api Server Addr")
 	flag.Parse()
 
 	db, _ := gorm.Open(sqlite.Open(dsn), nil)
 	db.AutoMigrate(Product{}, User{})
 
 	r := gin.Default()
-	RegisterWebObjectHandler(r, db, webServerAddr)
 
-	// visit Admin: http://localhost:5000/
-	// visit API: http://localhost:8890/
-	r.Run(apiServerAddr)
+	objs := GetWebObjects(db)
+
+	// visit API: http://localhost:8890/api
+	gormpher.RegisterObjects(r.Group("api"), objs)
+	// visit Admin: http://localhost:8890/admin
+	gormpher.RegisterObjectsWithAdmin(r.Group("admin"), objs)
+
+	r.Run(addr)
 }
 
-func RegisterWebObjectHandler(r gin.IRoutes, db *gorm.DB, webServerAddr string) {
-	objs := []gormpher.WebObject{
+func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
+	return []gormpher.WebObject{
 		// Check API File: product.http
 		// PUT 		http://localhost:8890/user
 		// GET 		http://localhost:8890/user/:key
@@ -69,13 +63,20 @@ func RegisterWebObjectHandler(r gin.IRoutes, db *gorm.DB, webServerAddr string) 
 		// DELETE http://localhost:8890/user/:key
 		// DELETE http://localhost:8890/user
 		{
+			Name:      "product",
 			Model:     &Product{},
 			Searchs:   []string{"Name"},
 			Editables: []string{"Name", "Enabled"},
 			Filters:   []string{"Name", "CreatedAt", "Enabled"},
 			Orders:    []string{"CreatedAt"},
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-				return db.Set("groupId", rand.Intn(5)) // Mock groupId
+				return db
+			},
+			Init: func(ctx *gin.Context, vptr any) error {
+				p := (vptr).(*Product)
+				p.UUID = MockUUID(8)
+				p.GroupID = rand.Intn(5)
+				return nil
 			},
 		},
 		// Check API File: user.http
@@ -86,22 +87,17 @@ func RegisterWebObjectHandler(r gin.IRoutes, db *gorm.DB, webServerAddr string) 
 		// DELETE http://localhost:8890/user/:key
 		// DELETE http://localhost:8890/user
 		{
+			Name:      "user",
 			Model:     &User{},
 			Searchs:   []string{"Name", "Enabled"},
 			Editables: []string{"Name", "Age", "Enabled"},
 			Filters:   []string{"Name", "CreatedAt", "Age", "Enabled"},
 			Orders:    []string{"CreatedAt", "Age", "Enabled"},
-			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+			GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB {
 				return db
 			},
 		},
 	}
-
-	// Register API
-	gormpher.RegisterObjects(r, objs)
-
-	// Register Admin (Optional)
-	gormpher.RegisterObjectsWithAdmin(objs, webServerAddr)
 }
 
 func MockUUID(n int) string {

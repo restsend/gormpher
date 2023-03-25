@@ -28,13 +28,18 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     proxy: {
+      '/admin': {
+        target: 'http://localhost:8890',
+        changeOrigin: true,
+      },
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:8890',
         changeOrigin: true,
       },
     },
   },
   build: {
+    manifest: true,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name].js',

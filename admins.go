@@ -2,10 +2,12 @@ package gormpher
 
 import (
 	"embed"
+	"fmt"
 	"log"
 	"net/http"
 	"path"
 	"reflect"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,15 +35,11 @@ var assets embed.FS
 //go:embed web/dist/index.html
 var indexHTML string
 
-func RegisterObjectsWithAdmin(objs []WebObject, webServerAddr string) error {
-	r := gin.Default()
-
-	br := r.Group("/api")
-
+func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) error {
 	m := AdminManager{}
 	for idx := range objs {
 		obj := &objs[idx]
-		if err := obj.RegisterObject(br); err != nil {
+		if err := obj.RegisterObject((gin.IRoutes)(r)); err != nil {
 			log.Fatalf("RegisterObject [%s] fail %v\n", obj.Name, err)
 		}
 
@@ -54,22 +52,27 @@ func RegisterObjectsWithAdmin(objs []WebObject, webServerAddr string) error {
 		return err
 	}
 
-	go RegisterAdmin(r, &m, webServerAddr)
+	go RegisterAdmin(r, &m)
 	return nil
 }
 
-func RegisterAdmin(r *gin.Engine, m *AdminManager, addr string) {
-	r.GET("api/object_names", m.handleObjectNames)
-	r.GET("api/object/:name", m.handleObjectFields)
+func RegisterAdmin(r *gin.RouterGroup, m *AdminManager) {
+	r.GET("object_names", m.handleObjectNames)
+	r.GET("object/:name", m.handleObjectFields)
 
 	r.GET("/assets/*filepath", func(ctx *gin.Context) {
-		p := path.Join("web/dist/", ctx.Request.RequestURI)
+		p := path.Join("web/dist/", strings.TrimPrefix(ctx.Request.RequestURI, r.BasePath()))
 		ctx.FileFromFS(p, http.FS(assets))
 	})
 	r.GET("/", func(ctx *gin.Context) {
-		ctx.Data(http.StatusOK, "text/html", []byte(indexHTML))
+		// handle Vite packaging static resources
+		html := strings.ReplaceAll(indexHTML, "/assets/", "assets/")
+		html = strings.ReplaceAll(html,
+			`window.serverPrefix = '/admin'`,
+			fmt.Sprintf(`window = serverPrefix = '%s'`, r.BasePath()),
+		)
+		ctx.Data(http.StatusOK, "text/html", []byte(html))
 	})
-	r.Run(addr)
 }
 
 func parseWebObjects(m *AdminManager) error {

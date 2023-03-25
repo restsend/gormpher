@@ -42,7 +42,7 @@ const (
 
 // type GetDB func() *gorm.DB
 type GetDB func(ctx *gin.Context, isCreate bool) *gorm.DB // designed for group
-// type PrepareModel func(ctx *gin.Context, vptr any) error
+type PrepareModel func(ctx *gin.Context, vptr any) error
 type PrepareQuery func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error)
 
 // TODO:
@@ -60,7 +60,7 @@ type WebObject struct {
 	Orders    []string
 	Searchs   []string
 	GetDB     GetDB
-	// Init      PrepareModel // How to create a new object
+	Init      PrepareModel // How to create a new object
 	// Views        []QueryView
 	AllowMethods int
 
@@ -107,11 +107,6 @@ type QueryResult[T any] struct {
 	Limit      int    `json:"limit,omitempty"`
 	Keyword    string `json:"keyword,omitempty"`
 	Items      T      `json:"items"`
-}
-
-// Batch delete
-type BatchForm struct {
-	Delete []string `json:"delete"`
 }
 
 // GetQuery return the combined filter SQL statement.
@@ -207,7 +202,7 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 	return nil
 }
 
-func RegisterObject(r gin.IRoutes, obj *WebObject) error {
+func RegisterObject(r gin.IRouter, obj *WebObject) error {
 	return obj.RegisterObject(r)
 }
 
@@ -326,12 +321,12 @@ func handleCreateObject(c *gin.Context, obj *WebObject) {
 		return
 	}
 
-	// if obj.Init != nil {
-	// 	if err := obj.Init(c, val); err != nil {
-	// 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 		return
-	// 	}
-	// }
+	if obj.Init != nil {
+		if err := obj.Init(c, val); err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
 
 	result := obj.GetDB(c, true).Create(val)
 	if result.Error != nil {
