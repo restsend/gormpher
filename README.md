@@ -115,3 +115,7 @@ func MockUUID(n int) string {
  return string(b)
 }
 ```
+
+Run the project and visit [http://localhost:8890/admin](http://localhost:8890/admin) , you can see a web interface for administrator.
+
+![image](https://user-images.githubusercontent.com/48195906/227763154-c13addc4-28bf-4572-8fce-1110e6cdae8e.png)

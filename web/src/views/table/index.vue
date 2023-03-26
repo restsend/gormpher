@@ -2,15 +2,14 @@
 import { computed, onMounted, reactive, watch } from 'vue'
 
 import Badge from './Badge.vue'
-import Bool from './Bool.vue'
 import DynaticInput from './DynaticInput.vue'
+import DynaticItem from './DynaticItem.vue'
 import FilterItem from './FilterItem.vue'
 import type { ActionType, TableState } from '@/types'
 
 import api from '@/api'
 import useTable from '@/views/table/useTable'
 import usePagination from '@/views/table/usePagination'
-import { formatDate } from '@/helper'
 import { alerter } from '@/components/popup'
 
 interface Props {
@@ -324,15 +323,12 @@ onMounted(async () => {
                 >
               </th>
               <td v-for="field of state.fields" :key="field">
-                <template v-if="field === 'createdAt' || field === 'updatedAt'">
-                  {{ formatDate(item[field]) }}
-                </template>
-                <template v-else-if="state.mapping[field] === 'boolean'">
-                  <Bool :value="item[field]" @click="handleToggleBool(item, field)" />
-                </template>
-                <template v-else>
-                  {{ item[field] }}
-                </template>
+                <DynaticItem
+                  :field="field"
+                  :value="item[field]"
+                  :type="state.mapping[field]"
+                  :toggle-bool="canEdit(field) ? () => handleToggleBool(item, field) : () => {}"
+                />
               </td>
               <td class="py-0.5">
                 <div class="invisible group-hover:visible">
