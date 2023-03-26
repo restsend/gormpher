@@ -37,6 +37,7 @@ var indexHTML string
 
 func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) error {
 	m := AdminManager{}
+
 	for idx := range objs {
 		obj := &objs[idx]
 		if err := obj.RegisterObject((gin.IRoutes)(r)); err != nil {
@@ -68,7 +69,7 @@ func RegisterAdmin(r *gin.RouterGroup, m *AdminManager) {
 		// handle Vite packaging static resources
 		html := strings.ReplaceAll(indexHTML, "/assets/", "assets/")
 		html = strings.ReplaceAll(html,
-			`window.serverPrefix = '/admin'`,
+			`window.serverPrefix = '/admin'`, // url inject
 			fmt.Sprintf(`window = serverPrefix = '%s'`, r.BasePath()),
 		)
 		ctx.Data(http.StatusOK, "text/html", []byte(html))
@@ -121,9 +122,9 @@ func (m *AdminManager) handleObjectNames(c *gin.Context) {
 // Support javascript type: boolean, number, string
 /*
 {
-	"fields": ["id", "name", "age", "enabled"],
-	"types": ["number", "string", "number", "boolean"]
-	"goTypes" ["uint", "string", "int", "bool"],
+	"fields": ["id", "name", "age", "enabled", "createdAt"],
+	"types": ["number", "string", "number", "boolean", "string"]
+	"goTypes" ["uint", "string", "int", "bool", "time.Time"],
 
 	"searchs": ["name"],
 	"filters": ["name", "age"],

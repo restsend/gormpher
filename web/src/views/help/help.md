@@ -25,8 +25,8 @@ QueryForm:
 |  pos | number  |    |  0  |
 |  limit | number  |    |  50  |
 |  keyword | number  |    | ""  |
-|  filters | []Filter  |   | null  |
-|  orders | []Order |    | null |
+|  filters | <a class="link">[]Filter</a>  |   | null  |
+|  orders | <a class="link">[]Order |    | null |
 
 Filter:
 
@@ -53,4 +53,4 @@ QueryResult:
 |  limit | number  |    |
 |  keyword | string |    |
 |  total | number  |    |
-|  items | object |  golang struct model |
+|  items | []object |  golang struct model |

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 
-import { alerter } from '@/popup'
+import { alerter, confirm } from '@/components/popup'
 import type { Filter, FilterOp, Order, OrderOp } from '@/types'
 
 interface ListOptions {
@@ -19,13 +19,12 @@ interface EditItem {
   // ...
 }
 
-interface QueryParams {
+export interface QueryParams {
   pos?: number
   limit?: number
   keyword?: string
   filters?: Array<Filter>
   orders?: Array<Order>
-  // [key: string]: any
 }
 
 interface QueryResult {
@@ -142,25 +141,37 @@ export default function useTable({
   }
 
   async function handleDelete(id: number | string): Promise<void> {
-    try {
-      await deleteFn(id)
-      modalVisible.value = false
-      handleQuery()
-      alerter.success('Delete success!')
-    }
-    catch (err: any) {
-      alerter.error(err)
-    }
+    confirm({
+      title: 'Delete Confirm',
+      content: 'Are you sure you want to delete this? This action cannot be undone.',
+      onPositiveClick: async () => {
+        try {
+          await deleteFn(id)
+          modalVisible.value = false
+          handleQuery()
+          alerter.success('Delete success!')
+        }
+        catch (err: any) {
+          alerter.error(err)
+        }
+      },
+    })
   }
 
   async function handleBatch(ids: number[] | string[]): Promise<void> {
-    try {
-      await batchFn(ids.map(e => String(e)))
-      handleQuery()
-    }
-    catch (err: any) {
-      alerter.error(err)
-    }
+    confirm({
+      title: 'Delete Confirm',
+      content: 'Are you sure you want to delete all? This action cannot be undone.',
+      onPositiveClick: async () => {
+        try {
+          await batchFn(ids.map(e => String(e)))
+          handleQuery()
+        }
+        catch (err: any) {
+          alerter.error(err)
+        }
+      },
+    })
   }
 
   function handleOrder(field: string, op: OrderOp) {

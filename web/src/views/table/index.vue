@@ -7,12 +7,11 @@ import DynaticInput from './DynaticInput.vue'
 import FilterItem from './FilterItem.vue'
 import type { ActionType, TableState } from '@/types'
 
-import request from '@/api/request'
 import api from '@/api'
 import useTable from '@/views/table/useTable'
 import usePagination from '@/views/table/usePagination'
 import { formatDate } from '@/helper'
-import { alerter } from '@/popup'
+import { alerter } from '@/components/popup'
 
 interface Props {
   name: string
@@ -65,14 +64,23 @@ const {
   handleReset,
 } = useTable({
   initForm: {},
-  addFn: item => request.put(`/api/${state.name}`, item),
-  editFn: item => request.patch(`/api/${state.name}/${item.id}`, item),
-  deleteFn: id => request.delete(`/api/${state.name}/${id}`),
-  queryFn: params => request.post(`/api/${state.name}`, params),
-  batchFn: ids => request.delete(`/api/${state.name}`, ids),
+  addFn: item => api.handleAdd(state.name, item),
+  editFn: item => api.handleEdit(state.name, item),
+  deleteFn: id => api.handleDelete(state.name, id),
+  queryFn: params => api.handleQuery(state.name, params),
+  batchFn: ids => api.handleBatch(state.name, ids),
   queryParams: {},
   validateForm: () => true, // no form validate
 })
+
+function handleToggleBool(item: any, field: string) {
+  try {
+    handleEdit({ ...item, [field]: !item[field] })
+  }
+  catch (err: any) {
+    alerter.error(err)
+  }
+}
 
 const indeterminate = computed(() => selectedIds.value.length > 0 && selectedIds.value.length < list.value.length)
 
@@ -151,285 +159,245 @@ onMounted(async () => {
 </script>
 
 <template>
-  <template v-if="state.name">
-    <div class="px-4 text-sm breadcrumbs">
-      <ul>
-        <li>Webobjects</li>
-        <li>{{ state.name }}</li>
-      </ul>
-    </div>
-    <div class="wh-full space-y-4 p-8 bg-gray-50 rounded-md">
-      <!-- Header -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-4">
-          <div class="flex relative">
-            <input
-              v-model="keyword"
-              :disabled="!state.searchs.length"
-              type="text"
-              placeholder="Keyword search"
-              class="input input-bordered input-sm w-full max-w-xs"
-              @keyup.enter="handleSearch"
-            >
-            <button
-              class="i-uiw:search absolute right-2 btn btn-sm btn-square"
-              :disabled="!state.searchs.length"
-              @click="handleSearch"
-            />
-          </div>
-          <div class="dropdown dropdow-bottom">
-            <label tabindex="0">
-              <button class="btn btn-sm btn-circle btn-ghost m-1" :disabled="!state.filters.length">
-                <div class="i-uiw:filter p-1" />
-              </button>
-            </label>
-            <ul tabindex="0" class="dropdown-content p-2 shadow bg-base-100 rounded-box w-120 space-y-2">
-              <li v-for="filter of filters" :key="filter.name">
-                <FilterItem
-                  :filter="filter"
-                  :filters="state.filters"
-                  :type="state.mapping[filter.name]"
-                  @handle-query="handleQuery"
-                  @remove-filter="handleRemoveFilter"
-                />
-              </li>
-              <li class="f-c-c cursor-pointer">
-                <a>
-                  <button
-                    class="btn btn-sm btn-circle btn-ghost"
-                    :disabled="filters.length >= state.filters.length"
-                    @click="filters.push({ name: state.filters[filters.length], op: '=', value: '' })"
-                  >
-                    <div class="i-uiw:plus" />
-                  </button>
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div class="dropdown">
-            <label tabindex="0">
-              <button
-                class="btn btn-sm btn-circle btn-ghost"
-                :disabled="!state.orders.length"
-              >
-                <div class="i-uiw:bar-chart p-1" />
-              </button>
-            </label>
-            <ul tabindex="0" class="dropdown-content menu shadow bg-base-100 rounded-box w-64 text-sm">
-              <div class="card bg-base-100 shadow-xl">
-                <div class="card-body">
-                  <pre><code>{{ JSON.stringify(orders, null, '\t') }}</code></pre>
-                </div>
-              </div>
-            </ul>
-          </div>
-          <button
-            class="btn btn-sm btn-circle btn-ghost"
-            @click="handleReset"
+  <div class="wh-full space-y-4 p-4 pb-0 rounded-md">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div class="flex items-center space-x-4">
+        <div class="flex relative">
+          <input
+            v-model="keyword"
+            :disabled="!state.searchs.length"
+            type="text"
+            placeholder="Keyword search"
+            class="input input-bordered input-sm w-full max-w-xs"
+            @keyup.enter="handleSearch"
           >
-            <div class="i-uiw:reload" />
-          </button>
+          <button
+            class="i-uiw:search absolute right-2 btn btn-sm btn-square"
+            :disabled="!state.searchs.length"
+            @click="handleSearch"
+          />
         </div>
-
-        <button class="btn btn-sm btn-primary" @click="handleShowAdd">
-          ADD
+        <div class="dropdown dropdow-bottom">
+          <label tabindex="0">
+            <button class="btn btn-sm btn-circle btn-ghost m-1" :disabled="!state.filters.length">
+              <div class="i-uiw:filter p-1" />
+            </button>
+          </label>
+          <ul tabindex="0" class="dropdown-content p-2 shadow bg-base-100 rounded-box w-120 space-y-2">
+            <li v-for="filter of filters" :key="filter.name">
+              <FilterItem
+                :filter="filter"
+                :filters="state.filters"
+                :type="state.mapping[filter.name]"
+                @handle-query="handleQuery"
+                @remove-filter="handleRemoveFilter"
+              />
+            </li>
+            <li class="f-c-c cursor-pointer">
+              <a>
+                <button
+                  class="btn btn-sm btn-circle btn-ghost"
+                  :disabled="filters.length >= state.filters.length"
+                  @click="filters.push({ name: state.filters[filters.length], op: '=', value: '' })"
+                >
+                  <div class="i-uiw:plus" />
+                </button>
+              </a>
+            </li>
+          </ul>
+        </div>
+        <div class="dropdown">
+          <label tabindex="0">
+            <button
+              class="btn btn-sm btn-circle btn-ghost"
+              :disabled="!state.orders.length"
+            >
+              <div class="i-uiw:bar-chart p-1" />
+            </button>
+          </label>
+          <ul tabindex="0" class="dropdown-content menu shadow bg-base-100 rounded-box w-64 text-sm">
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body">
+                <pre><code>{{ JSON.stringify(orders, null, '\t') }}</code></pre>
+              </div>
+            </div>
+          </ul>
+        </div>
+        <button
+          class="btn btn-sm btn-circle btn-ghost"
+          @click="handleReset"
+        >
+          <div class="i-uiw:reload" />
         </button>
       </div>
 
-      <div class="wh-full overflow-x-auto">
-        <div class="relative">
-          <!-- Bulk action -->
-          <div
-            v-if="selectedIds.length > 0"
-            class="absolute top-0 left-14 z-99 flex h-16 items-center space-x-3 sm:left-12"
-          >
-            <div class="left-14 z-99 dropdown dropdown-bottom">
-              <label tabindex="0" class="btn btn-circle btn-ghost btn-sm">
-                <button type="button" class="btn btn-sm">
-                  Delete all
-                </button>
-              </label>
-              <div tabindex="0" class="card compact dropdown-content shadow bg-base-100 rounded-box w-54 mt-1">
-                <div class="card-body">
-                  <h2 class="card-title text-red-500">
-                    <div class="i-clarity:error-line" />
-                    Error
-                  </h2>
-                  <p>Are you sure to delete all?</p>
-                  <div class="card-actions justify-end">
-                    <button
-                      class="btn btn-xs btn-error"
-                      @click="handleBatch(selectedIds)"
-                    >
-                      OK
-                    </button>
-                  </div>
+      <button class="btn btn-sm btn-primary" @click="handleShowAdd">
+        ADD
+      </button>
+    </div>
+
+    <div class="relative w-full overflow-x-auto min-h-md">
+      <!-- Bulk action -->
+      <div
+        v-if="selectedIds.length > 0"
+        class="absolute top-0 left-16 z-10 flex h-16 items-center space-x-3 sm:left-12"
+      >
+        <button
+          type="button"
+          class="btn btn-sm ml-5"
+          @click="handleBatch(selectedIds)"
+        >
+          Delete all
+        </button>
+      </div>
+      <table class="table table-normal wh-full text-sm">
+        <thead>
+          <tr>
+            <template v-if="loading">
+              <th :colspan="99">
+                <div class="w-full f-c-c text-sm opacity-90">
+                  <div class="i-eos-icons:three-dots-loading text-2xl" />
                 </div>
-              </div>
-            </div>
-          </div>
-          <table class="table table-normal min-w-full h-full text-sm">
-            <thead>
-              <tr>
-                <template v-if="loading">
-                  <th :colspan="99">
-                    <div class="w-full f-c-c text-sm opacity-90">
-                      <div class="i-eos-icons:three-dots-loading text-2xl" />
-                    </div>
-                  </th>
+              </th>
+            </template>
+            <template v-else>
+              <th>
+                <input
+                  type="checkbox"
+                  class="checkbox"
+                  :checked="indeterminate || (selectedIds.length > 0 && selectedIds.length === list.length)"
+                  :indeterminate="indeterminate"
+                  @change="selectedIds = ($event.target as HTMLInputElement).checked ? list.map(e => e.id) : []"
+                >
+              </th>
+              <th v-for="field of state.fields" :key="field">
+                <div class="flex items-center space-x-1 cursor-default">
+                  <div v-if="canOrder(field)" class="flex flex-col">
+                    <div
+                      class="i-typcn:arrow-sorted-up transition-500 hover:scale-130"
+                      @click="handleOrder(field, 'asc')"
+                    />
+                    <div
+                      class="i-typcn:arrow-sorted-down transition-500 hover:scale-130"
+                      @click="handleOrder(field, 'desc')"
+                    />
+                  </div>
+                  <span> {{ field }} </span>
+                  <Badge :actions="getActions(field)" />
+                </div>
+              </th>
+              <th />
+            </template>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-if="loading">
+            <tr>
+              <td :colspan="99">
+                <div class="w-full f-c-c h-96 text-sm opacity-90">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><rect width="6" height="14" x="1" y="4" fill="#888888"><animate id="svgSpinnersBarsScaleFade0" fill="freeze" attributeName="y" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="9" y="4" fill="currentColor" opacity=".4"><animate fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="17" y="4" fill="currentColor" opacity=".3"><animate id="svgSpinnersBarsScaleFade1" fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;.2" /></rect></svg>
+                </div>
+              </td>
+            </tr>
+          </template>
+          <template v-else-if="!list.length">
+            <tr>
+              <td :colspan="99">
+                <div class="f-c-c min-h-96 bg-base-100">
+                  <!-- <div class="i-simple-icons:protodotio text-5xl" /> -->
+                  <span class="font-mono text-base-300 text-5xl select-none">
+                    Empty
+                  </span>
+                </div>
+              </td>
+            </tr>
+          </template>
+          <template v-else>
+            <tr v-for="item of list" :key="item.id" class="hover group">
+              <th>
+                <input
+                  v-model="selectedIds"
+                  :value="item.id"
+                  type="checkbox"
+                  class="checkbox"
+                >
+              </th>
+              <td v-for="field of state.fields" :key="field">
+                <template v-if="field === 'createdAt' || field === 'updatedAt'">
+                  {{ formatDate(item[field]) }}
+                </template>
+                <template v-else-if="state.mapping[field] === 'boolean'">
+                  <Bool :value="item[field]" @click="handleToggleBool(item, field)" />
                 </template>
                 <template v-else>
-                  <th>
-                    <input
-                      type="checkbox"
-                      class="checkbox"
-                      :checked="indeterminate || (selectedIds.length > 0 && selectedIds.length === list.length)"
-                      :indeterminate="indeterminate"
-                      @change="selectedIds = ($event.target as HTMLInputElement).checked ? list.map(e => e.id) : []"
-                    >
-                  </th>
-                  <th v-for="field of state.fields" :key="field">
-                    <div class="flex items-center space-x-1 cursor-default">
-                      <div v-if="canOrder(field)" class="flex flex-col">
-                        <div
-                          class="i-typcn:arrow-sorted-up transition-500 hover:scale-130"
-                          @click="handleOrder(field, 'asc')"
-                        />
-                        <div
-                          class="i-typcn:arrow-sorted-down transition-500 hover:scale-130"
-                          @click="handleOrder(field, 'desc')"
-                        />
-                      </div>
-                      <span> {{ field }} </span>
-                      <Badge :actions="getActions(field)" />
-                    </div>
-                  </th>
-                  <th />
+                  {{ item[field] }}
                 </template>
-              </tr>
-            </thead>
-            <tbody>
-              <template v-if="loading">
-                <tr>
-                  <td :colspan="99">
-                    <div class="w-full f-c-c h-96 text-sm opacity-90">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><rect width="6" height="14" x="1" y="4" fill="#888888"><animate id="svgSpinnersBarsScaleFade0" fill="freeze" attributeName="y" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="9" y="4" fill="currentColor" opacity=".4"><animate fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="17" y="4" fill="currentColor" opacity=".3"><animate id="svgSpinnersBarsScaleFade1" fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;.2" /></rect></svg>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-              <template v-else-if="!list.length">
-                <tr>
-                  <td :colspan="99">
-                    <div class="f-c-c min-h-md bg-base-100">
-                      <!-- <div class="i-simple-icons:protodotio text-5xl" /> -->
-                      <span class="font-mono text-base-300 text-5xl select-none">
-                        Empty
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-              <template v-else>
-                <tr v-for="item of list" :key="item.id" class="hover group">
-                  <th>
-                    <input
-                      v-model="selectedIds"
-                      :value="item.id"
-                      type="checkbox"
-                      class="checkbox"
+              </td>
+              <td class="py-0.5">
+                <div class="invisible group-hover:visible">
+                  <div class="flex items-center space-x-4">
+                    <div
+                      class="btn btn-circle btn-ghost btn-sm"
+                      @click="handleShowEdit(item)"
                     >
-                  </th>
-                  <td v-for="field of state.fields" :key="field">
-                    <template v-if="field === 'createdAt' || field === 'updatedAt'">
-                      {{ formatDate(item[field]) }}
-                    </template>
-                    <template v-else-if="state.mapping[field] === 'boolean'">
-                      <Bool :value="item[field]" />
-                    </template>
-                    <template v-else>
-                      {{ item[field] }}
-                    </template>
-                  </td>
-                  <td class="py-0.5">
-                    <div class="invisible group-hover:visible">
-                      <div class="flex items-center space-x-4">
-                        <labele class="btn btn-circle btn-ghost btn-sm">
-                          <button
-                            class="i-uiw:edit text-green-400 hover:text-green-400"
-                            @click="handleShowEdit(item)"
-                          />
-                        </labele>
-                        <div class="dropdown dropdown-left">
-                          <label tabindex="0" class="btn btn-circle btn-ghost btn-sm">
-                            <button class="i-uiw:delete text-red-500 hover:text-red-500" />
-                          </label>
-                          <div tabindex="0" class="card compact dropdown-content shadow bg-base-100 rounded-box w-54">
-                            <div class="card-body">
-                              <h2 class="card-title text-red-500">
-                                <div class="i-clarity:error-line" />
-                                Error
-                              </h2>
-                              <p>Are you sure to delete?</p>
-                              <div class="card-actions justify-end">
-                                <button
-                                  class="btn btn-xs btn-error"
-                                  @click="handleDelete(item.id)"
-                                >
-                                  OK
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <span class="i-uiw:edit text-green-400 hover:text-green-400" />
                     </div>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    <div
+                      class="btn btn-circle btn-ghost btn-sm"
+                      @click="handleDelete(item.id)"
+                    >
+                      <span class="i-uiw:delete text-red-500 hover:text-red-500" />
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
 
-      <!-- Pagination -->
-      <div class="flex items-center justify-between pb-5">
-        <div class="space-x-3">
-          <span>
-            Total: {{ total }}
-          </span>
-          <select
-            v-model.number="limit"
-            class="select select-sm select-bordered"
-            @change="handleQuery"
-          >
-            <option>5</option>
-            <option>10</option>
-            <option>20</option>
-            <option>50</option>
-            <option>80</option>
-          </select>
-        </div>
-        <div class="btn-group">
-          <button
-            class="btn"
-            @click="handlePrev"
-          >
-            <div class="i-ic:sharp-arrow-back-ios" />
-          </button>
-          <button class="btn">
-            PAGE {{ currentPage }}
-          </button>
-          <button
-            class="btn"
-            @click="handleNext"
-          >
-            <div class="i-ic:baseline-arrow-forward-ios" />
-          </button>
-        </div>
+    <!-- Pagination -->
+    <div class="flex items-center justify-between mt-5">
+      <div class="space-x-3">
+        <span>
+          Total: {{ total }}
+        </span>
+        <select
+          v-model.number="limit"
+          class="select select-sm select-bordered"
+          @change="handleQuery"
+        >
+          <option>5</option>
+          <option>10</option>
+          <option>20</option>
+          <option>50</option>
+          <option>80</option>
+        </select>
+      </div>
+      <div class="btn-group">
+        <button
+          class="btn"
+          @click="handlePrev"
+        >
+          <div class="i-ic:sharp-arrow-back-ios" />
+        </button>
+        <button class="btn">
+          PAGE {{ currentPage }}
+        </button>
+        <button
+          class="btn"
+          @click="handleNext"
+        >
+          <div class="i-ic:baseline-arrow-forward-ios" />
+        </button>
       </div>
     </div>
-    <!-- Edit Modal -->
+  </div>
+
+  <!-- Edit Modal -->
+  <div>
     <input
       v-model="modalVisible"
       type="checkbox"
@@ -483,5 +451,5 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-  </template>
+  </div>
 </template>

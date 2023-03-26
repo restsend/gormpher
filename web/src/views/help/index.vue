@@ -6,7 +6,7 @@ const markdown = marked.parse(helpmd)
 </script>
 
 <template>
-  <article class="text-base prose prose-truegray">
+  <article class="mx-3 text-base prose prose-truegray">
     <div v-html="markdown" />
   </article>
 </template>

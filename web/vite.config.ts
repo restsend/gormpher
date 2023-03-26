@@ -3,7 +3,6 @@ import { defineConfig } from 'vite'
 import Vue from '@vitejs/plugin-vue'
 import Unocss from 'unocss/vite'
 import { visualizer } from 'rollup-plugin-visualizer'
-import Inspector from 'unplugin-vue-inspector/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -21,9 +20,6 @@ export default defineConfig({
       gzipSize: true,
       brotliSize: true,
     }),
-    Inspector({
-      toggleButtonVisibility: 'always',
-    }),
   ],
   server: {
     host: '0.0.0.0',
@@ -39,7 +35,6 @@ export default defineConfig({
     },
   },
   build: {
-    manifest: true,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name].js',
