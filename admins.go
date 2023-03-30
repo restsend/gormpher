@@ -12,12 +12,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+//go:embed web/dist/index.html web/dist/assets/*
+var assets embed.FS
+
+//go:embed web/dist/index.html
+var indexHTML string
+
 type AdminObject struct {
-	WebObject *WebObject
-	Searchs   []string
-	Filters   []string
-	Edits     []string
-	Orders    []string
+	// If you set webObject, it will be resolved.
+	// Or you can manually construct the following fields.
+	webObject *WebObject
+
+	// All elements are json format string
+	Searchs []string
+	Filters []string
+	Edits   []string
+	Orders  []string
 
 	// Map fields to jsonTag. such as:
 	// UUID string `json:"id"` => {"UUID": "id"}
@@ -29,35 +39,19 @@ type AdminManager struct {
 	Names        []string
 }
 
-//go:embed web/dist/index.html web/dist/assets/*
-var assets embed.FS
-
-//go:embed web/dist/index.html
-var indexHTML string
-
-func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) error {
+// RegisterObjectsWithAdmin quickly Regiter Admin by webobjects
+func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) {
 	m := AdminManager{}
-
-	for idx := range objs {
-		obj := &objs[idx]
-		if err := obj.RegisterObject((gin.IRoutes)(r)); err != nil {
-			log.Fatalf("RegisterObject [%s] fail %v\n", obj.Name, err)
-		}
-
-		m.AdminBojects = append(m.AdminBojects, &AdminObject{
-			WebObject: obj,
-		})
+	for _, obj := range objs {
+		m.RegisterObject(r, &obj)
 	}
-
-	if err := parseWebObjects(&m); err != nil {
-		return err
-	}
-
-	go RegisterAdmin(r, &m)
-	return nil
+	RegisterAdmin(r, &m)
 }
 
+// RegiterAdmin resolve adminManager & register admin handler
 func RegisterAdmin(r *gin.RouterGroup, m *AdminManager) {
+	m.parseWebObjects()
+
 	r.GET("object_names", m.handleObjectNames)
 	r.GET("object/:name", m.handleObjectFields)
 
@@ -76,38 +70,50 @@ func RegisterAdmin(r *gin.RouterGroup, m *AdminManager) {
 	})
 }
 
-func parseWebObjects(m *AdminManager) error {
+func (m *AdminManager) RegisterObject(r *gin.RouterGroup, obj *WebObject) {
+	if err := obj.RegisterObject((gin.IRouter)(r)); err != nil {
+		log.Fatalf("RegisterObjectWithAdmin [%s] fail %v\n", obj.Name, err)
+	}
+	m.AdminBojects = append(m.AdminBojects, &AdminObject{
+		webObject: obj,
+	})
+}
+
+func (m *AdminManager) parseWebObjects() {
 	for _, obj := range m.AdminBojects {
-		m.Names = append(m.Names, obj.WebObject.Name)
+
+		if obj.webObject == nil {
+			continue
+		}
+
+		m.Names = append(m.Names, obj.webObject.Name)
 
 		fieldsToJsons := make(map[string]string)
-		for k, v := range obj.WebObject.jsonToFields {
+		for k, v := range obj.webObject.jsonToFields {
 			fieldsToJsons[v] = k
 		}
 		obj.fieldsToJsons = fieldsToJsons
 
 		obj.Filters = make([]string, 0)
-		for _, f := range obj.WebObject.Filters {
+		for _, f := range obj.webObject.Filters {
 			obj.Filters = append(obj.Filters, fieldsToJsons[f])
 		}
 
 		obj.Orders = make([]string, 0)
-		for _, f := range obj.WebObject.Orders {
+		for _, f := range obj.webObject.Orders {
 			obj.Orders = append(obj.Orders, fieldsToJsons[f])
 		}
 
 		obj.Edits = make([]string, 0)
-		for _, f := range obj.WebObject.Editables {
+		for _, f := range obj.webObject.Editables {
 			obj.Edits = append(obj.Edits, fieldsToJsons[f])
 		}
 
 		obj.Searchs = make([]string, 0)
-		for _, f := range obj.WebObject.Searchs {
+		for _, f := range obj.webObject.Searchs {
 			obj.Searchs = append(obj.Searchs, fieldsToJsons[f])
 		}
 	}
-
-	return nil
 }
 
 // Get object name list
@@ -146,10 +152,15 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 	goTypes := make([]string, 0)
 
 	for _, obj := range m.AdminBojects {
-		if obj.WebObject.Name == name {
-			rt := obj.WebObject.modelElem
+		if obj.webObject.Name == name {
+			rt := obj.webObject.modelElem
 			for i := 0; i < rt.NumField(); i++ {
 				f := rt.Field(i)
+
+				if f.Tag.Get("json") == "-" {
+					continue
+				}
+
 				jsonName := obj.fieldsToJsons[f.Name]
 				typeVal := convertGoTypeToJS(f.Type.Kind())
 
