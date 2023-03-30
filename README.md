@@ -4,6 +4,10 @@ Gormpher - Generate restful APIs by defining struct model, based on Gin and Gorm
 # Quick Start
 
 ```go
+go get github.com/restsend/gormpher
+```
+
+```go
 package main
 
 import (
