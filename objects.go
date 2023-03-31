@@ -73,9 +73,6 @@ type WebObject struct {
 	// Map json tag to struct field name. such as:
 	// UUID string `json:"id"` => {"id" : "UUID"}
 	jsonToFields map[string]string
-	// Map filed name to json tag. such as:
-	// UUID string `json:"id"` => {"UUID" : "id"}
-	fieldsToJson map[string]string
 	// Map json tag to field kind. such as:
 	// UUID string `json:"id"` => {"id": string}
 	jsonToKinds map[string]reflect.Kind
@@ -231,7 +228,6 @@ func (obj *WebObject) Build() error {
 	}
 
 	obj.jsonToFields = make(map[string]string)
-	obj.fieldsToJson = make(map[string]string)
 	obj.jsonToKinds = make(map[string]reflect.Kind)
 	obj.parseFields(obj.modelElem)
 
@@ -259,7 +255,6 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 		jsonTag := f.Tag.Get("json")
 		if jsonTag == "" {
 			obj.jsonToFields[f.Name] = f.Name
-			obj.fieldsToJson[f.Name] = f.Name
 
 			kind := f.Type.Kind()
 			if kind == reflect.Ptr {
@@ -268,7 +263,6 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 			obj.jsonToKinds[f.Name] = kind
 		} else if jsonTag != "-" {
 			obj.jsonToFields[jsonTag] = f.Name
-			obj.fieldsToJson[f.Name] = jsonTag
 
 			kind := f.Type.Kind()
 			if kind == reflect.Ptr {

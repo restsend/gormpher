@@ -19,8 +19,6 @@ var assets embed.FS
 var indexHTML string
 
 type AdminObject struct {
-	// If you set webObject, it will be resolved.
-	// Or you can manually construct the following fields.
 	webObject *WebObject
 
 	// All elements are json format string
@@ -35,7 +33,7 @@ type AdminObject struct {
 }
 
 type AdminManager struct {
-	AdminBojects []*AdminObject
+	AdminBojects []AdminObject
 	Names        []string
 }
 
@@ -45,13 +43,70 @@ func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) {
 	for _, obj := range objs {
 		m.RegisterObject(r, &obj)
 	}
-	RegisterAdmin(r, &m)
+	RegisterAdminHandler(r, &m)
+}
+
+func (m *AdminManager) RegisterObject(r *gin.RouterGroup, obj *WebObject) {
+	if err := obj.RegisterObject((gin.IRouter)(r)); err != nil {
+		log.Fatalf("RegisterObjectWithAdmin [%s] fail %v\n", obj.Name, err)
+	}
+
+	m.Names = append(m.Names, obj.Name)
+	m.AdminBojects = append(m.AdminBojects, woToAo(*obj))
+}
+
+// convert WebObject to AdminObject
+func woToAo(wo WebObject) AdminObject {
+	ao := AdminObject{webObject: &wo}
+
+	rt := reflect.TypeOf(wo.Model)
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+
+	fieldsToJsons := make(map[string]string)
+	for i := 0; i < rt.NumField(); i++ {
+		f := rt.Field(i)
+		jsonTag := f.Tag.Get("json")
+		if jsonTag == "-" {
+			continue
+		} else if jsonTag == "" {
+			fieldsToJsons[f.Name] = f.Name
+		} else {
+			var jsonField string = jsonTag
+			if strings.Contains(jsonTag, ",") {
+				jsonField = strings.Split(jsonTag, ",")[0]
+			}
+			fieldsToJsons[f.Name] = jsonField
+		}
+	}
+	ao.fieldsToJsons = fieldsToJsons
+
+	ao.Filters = make([]string, 0)
+	for _, f := range wo.Filters {
+		ao.Filters = append(ao.Filters, fieldsToJsons[f])
+	}
+
+	ao.Orders = make([]string, 0)
+	for _, f := range wo.Orders {
+		ao.Orders = append(ao.Orders, fieldsToJsons[f])
+	}
+
+	ao.Edits = make([]string, 0)
+	for _, f := range wo.Editables {
+		ao.Edits = append(ao.Edits, fieldsToJsons[f])
+	}
+
+	ao.Searchs = make([]string, 0)
+	for _, f := range wo.Searchs {
+		ao.Searchs = append(ao.Searchs, fieldsToJsons[f])
+	}
+
+	return ao
 }
 
 // RegiterAdmin resolve adminManager & register admin handler
-func RegisterAdmin(r *gin.RouterGroup, m *AdminManager) {
-	m.parseWebObjects()
-
+func RegisterAdminHandler(r *gin.RouterGroup, m *AdminManager) {
 	r.GET("object_names", m.handleObjectNames)
 	r.GET("object/:name", m.handleObjectFields)
 
@@ -68,52 +123,6 @@ func RegisterAdmin(r *gin.RouterGroup, m *AdminManager) {
 		)
 		ctx.Data(http.StatusOK, "text/html", []byte(html))
 	})
-}
-
-func (m *AdminManager) RegisterObject(r *gin.RouterGroup, obj *WebObject) {
-	if err := obj.RegisterObject((gin.IRouter)(r)); err != nil {
-		log.Fatalf("RegisterObjectWithAdmin [%s] fail %v\n", obj.Name, err)
-	}
-	m.AdminBojects = append(m.AdminBojects, &AdminObject{
-		webObject: obj,
-	})
-}
-
-func (m *AdminManager) parseWebObjects() {
-	for _, obj := range m.AdminBojects {
-
-		if obj.webObject == nil {
-			continue
-		}
-
-		m.Names = append(m.Names, obj.webObject.Name)
-
-		fieldsToJsons := make(map[string]string)
-		for k, v := range obj.webObject.jsonToFields {
-			fieldsToJsons[v] = k
-		}
-		obj.fieldsToJsons = fieldsToJsons
-
-		obj.Filters = make([]string, 0)
-		for _, f := range obj.webObject.Filters {
-			obj.Filters = append(obj.Filters, fieldsToJsons[f])
-		}
-
-		obj.Orders = make([]string, 0)
-		for _, f := range obj.webObject.Orders {
-			obj.Orders = append(obj.Orders, fieldsToJsons[f])
-		}
-
-		obj.Edits = make([]string, 0)
-		for _, f := range obj.webObject.Editables {
-			obj.Edits = append(obj.Edits, fieldsToJsons[f])
-		}
-
-		obj.Searchs = make([]string, 0)
-		for _, f := range obj.webObject.Searchs {
-			obj.Searchs = append(obj.Searchs, fieldsToJsons[f])
-		}
-	}
 }
 
 // Get object name list
@@ -157,7 +166,8 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 			for i := 0; i < rt.NumField(); i++ {
 				f := rt.Field(i)
 
-				if f.Tag.Get("json") == "-" {
+				jsonTag := f.Tag.Get("json")
+				if jsonTag == "-" {
 					continue
 				}
 

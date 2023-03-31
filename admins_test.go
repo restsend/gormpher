@@ -3,6 +3,12 @@ package gormpher
 import (
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestConvertTypeToJS(t *testing.T) {
@@ -28,4 +34,119 @@ func TestConvertTypeToJS(t *testing.T) {
 			t.Errorf("convertTypeToJS(%v) = %v, want %v", tc.input, got, tc.want)
 		}
 	}
+}
+
+func TestWoToAo(t *testing.T) {
+	type User struct {
+		ID        uint   `json:"uid" gorm:"primarykey"`
+		Name      string `json:"name" gorm:"size:100"`
+		Age       int
+		Body      string     `json:"-" gorm:"-"`
+		LastLogin *time.Time `json:"lastLogin,omitempty"`
+	}
+
+	wo := WebObject{
+		Model:     User{},
+		Editables: []string{"Name"},
+		Filters:   []string{"Name", "Age", "ID"},
+		Searchs:   []string{"Name", "ID"},
+		Orders:    []string{"LastLogin"},
+	}
+
+	ao := woToAo(wo)
+	assert.Equal(t, 1, len(ao.Orders))
+	assert.Equal(t, 1, len(ao.Edits))
+	assert.Equal(t, 3, len(ao.Filters))
+	assert.Equal(t, 2, len(ao.Searchs))
+
+	assert.Equal(t, "name", ao.Edits[0])
+	assert.Equal(t, "lastLogin", ao.Orders[0])
+}
+
+func TestRegisterSingleObject(t *testing.T) {
+	type User struct {
+		ID        uint   `json:"uid" gorm:"primarykey"`
+		Name      string `json:"name" gorm:"size:100"`
+		Age       int
+		Body      string     `json:"-" gorm:"-"`
+		LastLogin *time.Time `json:"lastLogin,omitempty"`
+	}
+
+	type Product struct {
+		UUID string `json:"uuid" gorm:"primaryKey"`
+		Name string `json:"name"`
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+
+	ar := gin.Default().Group("admin")
+
+	wo1 := WebObject{
+		Name:      "user",
+		Model:     User{},
+		Editables: []string{"Name"},
+		Filters:   []string{"Name", "Age", "ID"},
+		Searchs:   []string{"Name", "ID"},
+		Orders:    []string{"LastLogin"},
+		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+			return db
+		},
+	}
+
+	wo2 := WebObject{
+		Name:  "product",
+		Model: Product{},
+		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+			return db
+		},
+	}
+
+	am := AdminManager{}
+	am.RegisterObject(ar, &wo1)
+	am.RegisterObject(ar, &wo2)
+
+	assert.Equal(t, 2, len(am.AdminBojects))
+	assert.Equal(t, 2, len(am.Names))
+}
+
+func TestRegisterObjects(t *testing.T) {
+	type User struct {
+		ID        uint   `json:"uid" gorm:"primarykey"`
+		Name      string `json:"name" gorm:"size:100"`
+		Age       int
+		Body      string     `json:"-" gorm:"-"`
+		LastLogin *time.Time `json:"lastLogin,omitempty"`
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(User{})
+
+	r := gin.Default()
+
+	wos := []WebObject{
+		{
+			Name:      "user1",
+			Model:     User{},
+			Editables: []string{"Name"},
+			Filters:   []string{"Name", "Age", "ID"},
+			Searchs:   []string{"Name", "ID"},
+			Orders:    []string{"LastLogin"},
+			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+				return db
+			},
+		},
+		{
+			Name:      "user2",
+			Model:     User{},
+			Editables: []string{"Name"},
+			Filters:   []string{"Name", "Age", "ID"},
+			Searchs:   []string{"Name", "ID"},
+			Orders:    []string{"LastLogin"},
+			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+				return db
+			},
+		},
+	}
+
+	RegisterObjectsWithAdmin(r.Group("admin"), wos)
 }

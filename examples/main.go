@@ -27,7 +27,7 @@ type User struct {
 	Name      string     `json:"name"`
 	Age       int        `json:"age"`
 	Enabled   bool       `json:"enabled"`
-	LastLogin *time.Time `json:"lastLogin"`
+	LastLogin *time.Time `json:"lastLogin,omitempty"`
 }
 
 func main() {
