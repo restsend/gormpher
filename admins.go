@@ -41,18 +41,18 @@ type AdminManager struct {
 func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) {
 	m := AdminManager{}
 	for _, obj := range objs {
-		m.RegisterObject(r, &obj)
+		m.RegisterObject(r, obj)
 	}
 	RegisterAdminHandler(r, &m)
 }
 
-func (m *AdminManager) RegisterObject(r *gin.RouterGroup, obj *WebObject) {
+func (m *AdminManager) RegisterObject(r *gin.RouterGroup, obj WebObject) {
 	if err := obj.RegisterObject((gin.IRouter)(r)); err != nil {
 		log.Fatalf("RegisterObjectWithAdmin [%s] fail %v\n", obj.Name, err)
 	}
 
 	m.Names = append(m.Names, obj.Name)
-	m.AdminBojects = append(m.AdminBojects, woToAo(*obj))
+	m.AdminBojects = append(m.AdminBojects, woToAo(obj))
 }
 
 // convert WebObject to AdminObject
