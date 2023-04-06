@@ -72,7 +72,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 				return db
 			},
-			Init: func(ctx *gin.Context, vptr any) error {
+			OnCreate: func(ctx *gin.Context, vptr any) error {
 				p := (vptr).(*Product)
 				p.UUID = MockUUID(8)
 				p.GroupID = rand.Intn(5)

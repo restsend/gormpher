@@ -102,8 +102,8 @@ func TestRegisterSingleObject(t *testing.T) {
 	}
 
 	am := AdminManager{}
-	am.RegisterObject(ar, &wo1)
-	am.RegisterObject(ar, &wo2)
+	am.RegisterObject(ar, wo1)
+	am.RegisterObject(ar, wo2)
 
 	assert.Equal(t, 2, len(am.AdminBojects))
 	assert.Equal(t, 2, len(am.Names))

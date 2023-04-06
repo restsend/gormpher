@@ -148,6 +148,9 @@ func TestObjectQuery(t *testing.T) {
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
+		OnRender: func(c *gin.Context, obj any) (any, error) {
+			return obj, nil
+		},
 	}
 	err := webobject.RegisterObject(r)
 	assert.Nil(t, err)

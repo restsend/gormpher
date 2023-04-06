@@ -42,8 +42,14 @@ const (
 
 // type GetDB func() *gorm.DB
 type GetDB func(ctx *gin.Context, isCreate bool) *gorm.DB // designed for group
-type PrepareModel func(ctx *gin.Context, vptr any) error
 type PrepareQuery func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error)
+
+type (
+	CreateHook func(ctx *gin.Context, vptr any) error
+	DeleteHook func(ctx *gin.Context, vptr any) error
+	UpdateHook func(ctx *gin.Context, vals map[string]any) error
+	RenderHook func(ctx *gin.Context, vptr any) (any, error)
+)
 
 // TODO:
 // type QueryView struct {
@@ -60,7 +66,11 @@ type WebObject struct {
 	Orders    []string
 	Searchs   []string
 	GetDB     GetDB
-	Init      PrepareModel // How to create a new object
+	OnCreate  CreateHook
+	OnUpdate  UpdateHook
+	OnDelete  DeleteHook
+	OnRender  RenderHook
+
 	// Views        []QueryView
 	AllowMethods int
 
@@ -304,6 +314,15 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 		return
 	}
 
+	if obj.OnRender != nil {
+		v, err := obj.OnRender(c, val)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		val = v
+	}
+
 	c.JSON(http.StatusOK, val)
 }
 
@@ -315,8 +334,8 @@ func handleCreateObject(c *gin.Context, obj *WebObject) {
 		return
 	}
 
-	if obj.Init != nil {
-		if err := obj.Init(c, val); err != nil {
+	if obj.OnCreate != nil {
+		if err := obj.OnCreate(c, val); err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -388,6 +407,13 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 		return
 	}
 
+	if obj.OnUpdate != nil {
+		if err := obj.OnUpdate(c, vals); err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	model := reflect.New(obj.modelElem).Interface()
 	pkColName := db.NamingStrategy.ColumnName(obj.tableName, obj.PrimaryKeyName)
 	result := db.Model(model).Where(pkColName, key).Updates(vals)
@@ -416,6 +442,13 @@ func handleDeleteObject(c *gin.Context, obj *WebObject) {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": r.Error.Error()})
 		}
 		return
+	}
+
+	if obj.OnDelete != nil {
+		if err := obj.OnDelete(c, val); err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	r = db.Delete(val)
@@ -519,6 +552,13 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// TODO:
+	// if obj.OnRender != nil {
+	// 	if _, ok := result.Items.(any); ok {
+	// 		log.Println("OnRender", 1)
+	// 	}
+	// }
 
 	c.JSON(http.StatusOK, result)
 }
