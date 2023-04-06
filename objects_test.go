@@ -3,6 +3,7 @@ package gormpher
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -694,4 +695,111 @@ func TestBatchDelete(t *testing.T) {
 	var res QueryResult[[]User]
 	json.Unmarshal(w.Body.Bytes(), &res)
 	assert.Equal(t, 1, res.TotalCount)
+}
+
+type tuser struct {
+	ID   uint   `json:"id" gorm:"primarykey"`
+	Name string `json:"name" gorm:"size:100"`
+	Age  int    `json:"age"`
+}
+
+func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(tuser{})
+
+	db.Create(&tuser{ID: 1, Name: "alice", Age: 9})
+	db.Create(&tuser{ID: 2, Name: "bob", Age: 10})
+	db.Create(&tuser{ID: 3, Name: "clash", Age: 11})
+
+	webobject := WebObject{
+		Name:      "user",
+		Model:     tuser{},
+		Editables: []string{"Name"},
+		Filters:   []string{"Name, Age"},
+		Searchs:   []string{"Name"},
+		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+			return db
+		},
+		OnCreate: func(ctx *gin.Context, vptr any) error {
+			user := (vptr).(*tuser)
+			if user.Name == "dangerous" {
+				return errors.New("alice is not allowed to create")
+			}
+			return nil
+		},
+		OnRender: func(ctx *gin.Context, vptr any) (any, error) {
+			user := (vptr).(*tuser)
+			user.Age = 99
+			return vptr, nil
+		},
+		OnDelete: func(ctx *gin.Context, vptr any) error {
+			user := (vptr).(*tuser)
+			if user.Name == "alice" {
+				return errors.New("alice is not allowed to delete")
+			}
+			return nil
+		},
+		OnUpdate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
+			user := (vptr).(*tuser)
+			if user.Name == "alice" {
+				return errors.New("alice is not allowed to update")
+			}
+			if vals["name"] == "dangerous" {
+				return errors.New("this name is not allowed to update")
+			}
+			return nil
+		},
+	}
+
+	r := gin.Default()
+	err := webobject.RegisterObject(r)
+	assert.Nil(t, err)
+
+	return *NewTestClient(r), db
+}
+
+func TestOnRender(t *testing.T) {
+	c, _ := initHookTest(t)
+
+	var res QueryResult[[]tuser]
+	err := c.CallPost("/user", nil, &res)
+	assert.Nil(t, err)
+	assert.Equal(t, 3, res.TotalCount)
+	assert.Equal(t, 99, res.Items[0].Age)
+	assert.Equal(t, 99, res.Items[1].Age)
+	assert.Equal(t, 99, res.Items[2].Age)
+}
+
+func TestOnDelete(t *testing.T) {
+	c, _ := initHookTest(t)
+
+	err := c.CallDelete("/user/1", nil, nil)
+	assert.NotNil(t, err)
+
+	err = c.CallDelete("/user/2", nil, nil)
+	assert.Nil(t, err)
+}
+
+func TestOnCreate(t *testing.T) {
+	c, _ := initHookTest(t)
+
+	err := c.CallPut("/user", tuser{Name: "dangerous"}, nil)
+	assert.NotNil(t, err)
+	log.Println(err) // alice is not allowed to create
+
+	err = c.CallPut("/user", tuser{Name: "notdangerous"}, nil)
+	assert.Nil(t, err)
+}
+
+func TestOnUpdate(t *testing.T) {
+	c, _ := initHookTest(t)
+
+	err := c.CallPatch("/user/1", map[string]any{"name": "notdangerous"}, nil)
+	assert.NotNil(t, err) // alice is not allowed to update
+
+	err = c.CallPatch("/user/2", map[string]any{"name": "dangerous"}, nil)
+	assert.NotNil(t, err) // this name is not allowed to update
+
+	err = c.CallPatch("/user/2", map[string]any{"name": "notdangerous"}, nil)
+	assert.Nil(t, err)
 }

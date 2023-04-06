@@ -47,7 +47,7 @@ type PrepareQuery func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, 
 type (
 	CreateHook func(ctx *gin.Context, vptr any) error
 	DeleteHook func(ctx *gin.Context, vptr any) error
-	UpdateHook func(ctx *gin.Context, vals map[string]any) error
+	UpdateHook func(ctx *gin.Context, vptr any, vals map[string]any) error
 	RenderHook func(ctx *gin.Context, vptr any) (any, error)
 )
 
@@ -407,15 +407,21 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 		return
 	}
 
+	pkColName := db.NamingStrategy.ColumnName(obj.tableName, obj.PrimaryKeyName)
+
 	if obj.OnUpdate != nil {
-		if err := obj.OnUpdate(c, vals); err != nil {
+		val := reflect.New(obj.modelElem).Interface()
+		if err := db.First(val, pkColName, key).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		if err := obj.OnUpdate(c, val, inputVals); err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 	}
 
 	model := reflect.New(obj.modelElem).Interface()
-	pkColName := db.NamingStrategy.ColumnName(obj.tableName, obj.PrimaryKeyName)
 	result := db.Model(model).Where(pkColName, key).Updates(vals)
 	if result.Error != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
@@ -549,16 +555,25 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 
 	result, err := QueryObjects(db, obj, form)
 	if err != nil {
+		log.Println(err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// TODO:
-	// if obj.OnRender != nil {
-	// 	if _, ok := result.Items.(any); ok {
-	// 		log.Println("OnRender", 1)
-	// 	}
-	// }
+	if obj.OnRender != nil {
+		vals := reflect.ValueOf(result.Items)
+		if vals.Kind() == reflect.Slice {
+			for i := 0; i < vals.Len(); i++ {
+				v := vals.Index(i).Addr().Interface()
+				rendered, err := obj.OnRender(c, v)
+				if err != nil {
+					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				vals.Index(i).Set(reflect.ValueOf(rendered).Elem())
+			}
+		}
+	}
 
 	c.JSON(http.StatusOK, result)
 }
