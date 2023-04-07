@@ -48,7 +48,7 @@ type (
 	CreateHook func(ctx *gin.Context, vptr any) error
 	DeleteHook func(ctx *gin.Context, vptr any) error
 	UpdateHook func(ctx *gin.Context, vptr any, vals map[string]any) error
-	RenderHook func(ctx *gin.Context, vptr any) (any, error)
+	RenderHook func(ctx *gin.Context, vptr any) error
 )
 
 // TODO:
@@ -315,12 +315,11 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 	}
 
 	if obj.OnRender != nil {
-		v, err := obj.OnRender(c, val)
+		err := obj.OnRender(c, val)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		val = v
 	}
 
 	c.JSON(http.StatusOK, val)
@@ -565,12 +564,12 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 		if vals.Kind() == reflect.Slice {
 			for i := 0; i < vals.Len(); i++ {
 				v := vals.Index(i).Addr().Interface()
-				rendered, err := obj.OnRender(c, v)
+				err := obj.OnRender(c, v)
 				if err != nil {
 					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
-				vals.Index(i).Set(reflect.ValueOf(rendered).Elem())
+				vals.Index(i).Set(reflect.ValueOf(v).Elem())
 			}
 		}
 	}

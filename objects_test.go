@@ -149,8 +149,8 @@ func TestObjectQuery(t *testing.T) {
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
-		OnRender: func(c *gin.Context, obj any) (any, error) {
-			return obj, nil
+		OnRender: func(c *gin.Context, obj any) error {
+			return nil
 		},
 	}
 	err := webobject.RegisterObject(r)
@@ -727,10 +727,12 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 			}
 			return nil
 		},
-		OnRender: func(ctx *gin.Context, vptr any) (any, error) {
+		OnRender: func(ctx *gin.Context, vptr any) error {
 			user := (vptr).(*tuser)
-			user.Age = 99
-			return vptr, nil
+			if user.Name != "alice" {
+				user.Age = 99
+			}
+			return nil
 		},
 		OnDelete: func(ctx *gin.Context, vptr any) error {
 			user := (vptr).(*tuser)
@@ -765,7 +767,7 @@ func TestOnRender(t *testing.T) {
 	err := c.CallPost("/user", nil, &res)
 	assert.Nil(t, err)
 	assert.Equal(t, 3, res.TotalCount)
-	assert.Equal(t, 99, res.Items[0].Age)
+	assert.Equal(t, 9, res.Items[0].Age)
 	assert.Equal(t, 99, res.Items[1].Age)
 	assert.Equal(t, 99, res.Items[2].Age)
 }
