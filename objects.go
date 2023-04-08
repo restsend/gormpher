@@ -44,21 +44,21 @@ const (
 	BATCH  = 1 << 6
 )
 
-type GetDB func(ctx *gin.Context, isCreate bool) *gorm.DB // designed for group
-type PrepareQuery func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error)
+type GetDB func(c *gin.Context, isCreate bool) *gorm.DB // designed for group
+type PrepareQuery func(c *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error)
 
 type (
-	CreateHook func(ctx *gin.Context, vptr any) error
-	DeleteHook func(ctx *gin.Context, vptr any) error
-	UpdateHook func(ctx *gin.Context, vptr any, vals map[string]any) error
-	RenderHook func(ctx *gin.Context, vptr any) error
+	CreateFunc func(ctx *gin.Context, vptr any) error
+	DeleteFunc func(ctx *gin.Context, vptr any) error
+	UpdateFunc func(ctx *gin.Context, vptr any, vals map[string]any) error
+	RenderFunc func(ctx *gin.Context, vptr any) error
 )
 
-// TODO:
-// type QueryView struct {
-// 	Name    string
-// 	Prepare PrepareQuery
-// }
+type QueryView struct {
+	Name    string
+	Method  string
+	Prepare PrepareQuery
+}
 
 type WebObject struct {
 	Model     any
@@ -69,12 +69,12 @@ type WebObject struct {
 	Orders    []string
 	Searchs   []string
 	GetDB     GetDB
-	OnCreate  CreateHook
-	OnUpdate  UpdateHook
-	OnDelete  DeleteHook
-	OnRender  RenderHook
+	OnCreate  CreateFunc
+	OnUpdate  UpdateFunc
+	OnDelete  DeleteFunc
+	OnRender  RenderFunc
 
-	// Views        []QueryView
+	Views        []QueryView
 	AllowMethods int
 
 	PrimaryKeyName     string
@@ -108,7 +108,8 @@ type QueryForm struct {
 	Keyword      string   `json:"keyword,omitempty"`
 	Filters      []Filter `json:"filters,omitempty"`
 	Orders       []Order  `json:"orders,omitempty"`
-	searchFields []string `json:"-"` // for Keyword
+	searchFields []string `json:"-"` // for keyword
+	viewFields   []string `json:"-"` // for view
 }
 
 type QueryResult[T any] struct {
@@ -125,7 +126,7 @@ func (f *Filter) GetQuery() string {
 	var op string
 	switch f.Op {
 	case FilterOpEqual:
-		return f.Name
+		op = "="
 	case FilterOpNotEqual:
 		op = "<>"
 	case FilterOpIn:
@@ -205,16 +206,21 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 		})
 	}
 
-	// for i := 0; i < len(obj.Views); i++ {
-	// 	v := &obj.Views[i]
-	// 	r.POST(filepath.Join(p, v.Name), func(ctx *gin.Context) {
-	// 		f := v.Prepare
-	// 		if f == nil {
-	// 			f = DefaultPrepareQuery[T]
-	// 		}
-	// 		handleQueryObject(ctx, obj, v.Prepare)
-	// 	})
-	// }
+	for i := 0; i < len(obj.Views); i++ {
+		v := &obj.Views[i]
+		if v.Name == "" {
+			return errors.New("with invalid view")
+		}
+		if v.Method == "" {
+			v.Method = http.MethodPost
+		}
+		if v.Prepare == nil {
+			v.Prepare = DefaultPrepareQuery
+		}
+		r.Handle(v.Method, filepath.Join(p, v.Name), func(ctx *gin.Context) {
+			handleQueryObject(ctx, obj, v.Prepare)
+		})
+	}
 
 	return nil
 }
@@ -329,8 +335,7 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 	}
 
 	if obj.OnRender != nil {
-		err := obj.OnRender(c, val)
-		if err != nil {
+		if err := obj.OnRender(c, val); err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -367,8 +372,7 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 	key := c.Param("key")
 
 	var inputVals map[string]any
-	err := c.BindJSON(&inputVals)
-	if err != nil {
+	if err := c.BindJSON(&inputVals); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -456,7 +460,7 @@ func handleDeleteObject(c *gin.Context, obj *WebObject) {
 	// for gorm delete hook, need to load model first.
 	if r.Error != nil {
 		if errors.Is(r.Error, gorm.ErrRecordNotFound) {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": r.Error.Error()})
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
 		} else {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": r.Error.Error()})
 		}
@@ -512,22 +516,20 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 	for _, k := range obj.Filters {
 		filterFields[k] = struct{}{}
 	}
-
 	if len(filterFields) > 0 {
 		var stripFilters []Filter
 		for i := 0; i < len(form.Filters); i++ {
-			f := form.Filters[i]
+			filter := form.Filters[i]
 			// Struct must has this field.
-			n, ok := obj.jsonToFields[f.Name]
+			field, ok := obj.jsonToFields[filter.Name]
 			if !ok {
 				continue
 			}
-			f.Name = n // replace to struct filed name
-			if _, ok := filterFields[f.Name]; !ok {
+			if _, ok := filterFields[field]; !ok {
 				continue
 			}
-			f.Name = namer.ColumnName(obj.tableName, f.Name)
-			stripFilters = append(stripFilters, f)
+			filter.Name = namer.ColumnName(obj.tableName, filter.Name)
+			stripFilters = append(stripFilters, filter)
 		}
 		form.Filters = stripFilters
 	} else {
@@ -538,21 +540,19 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 	for _, k := range obj.Orders {
 		orderFields[k] = struct{}{}
 	}
-
 	if len(orderFields) > 0 {
 		var stripOrders []Order
 		for i := 0; i < len(form.Orders); i++ {
-			o := form.Orders[i]
-			n, ok := obj.jsonToFields[o.Name]
+			order := form.Orders[i]
+			field, ok := obj.jsonToFields[order.Name]
 			if !ok {
 				continue
 			}
-			o.Name = n
-			if _, ok := orderFields[o.Name]; !ok {
+			if _, ok := orderFields[field]; !ok {
 				continue
 			}
-			o.Name = namer.ColumnName(obj.tableName, o.Name)
-			stripOrders = append(stripOrders, o)
+			order.Name = namer.ColumnName(obj.tableName, order.Name)
+			stripOrders = append(stripOrders, order)
 		}
 		form.Orders = stripOrders
 	} else {
@@ -566,14 +566,22 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 		}
 	}
 
-	result, err := QueryObjects(db, obj, form)
+	if len(form.viewFields) > 0 {
+		var stripViewFields []string
+		for _, v := range form.viewFields {
+			stripViewFields = append(stripViewFields, namer.ColumnName(obj.tableName, v))
+		}
+		form.viewFields = stripViewFields
+	}
+
+	r, err := QueryObjects(db, obj, form)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	if obj.OnRender != nil {
-		vals := reflect.ValueOf(result.Items)
+		vals := reflect.ValueOf(r.Items)
 		if vals.Kind() == reflect.Slice {
 			for i := 0; i < vals.Len(); i++ {
 				v := vals.Index(i).Addr().Interface()
@@ -586,7 +594,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 		}
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, r)
 }
 
 // QueryObjects excute query and return data.
@@ -595,17 +603,13 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 	tblName := db.NamingStrategy.TableName(obj.tableName)
 
 	for _, v := range form.Filters {
-		q := v.GetQuery()
-		if q != "" {
+		if q := v.GetQuery(); q != "" {
 			db = db.Where(fmt.Sprintf("%s.%s", tblName, q), v.Value)
-		} else {
-			log.Println("xxxx")
 		}
 	}
 
 	for _, v := range form.Orders {
-		q := v.GetQuery()
-		if q != "" {
+		if q := v.GetQuery(); q != "" {
 			db = db.Order(fmt.Sprintf("%s.%s", tblName, q))
 		}
 	}
@@ -619,32 +623,26 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 		db = db.Where(searchKey, sql.Named("keyword", "%"+form.Keyword+"%"))
 	}
 
-	pos, limit := form.Pos, form.Limit
-	if pos < 0 {
-		pos = 0
-	}
-	if limit <= 0 || limit > 150 {
-		limit = DefaultQueryLimit
+	if len(form.viewFields) > 0 {
+		db = db.Select(form.viewFields)
 	}
 
-	r.Limit = limit
 	r.Pos = form.Pos
+	r.Limit = form.Limit
 	r.Keyword = form.Keyword
 
 	var c int64
 	model := reflect.New(obj.modelElem).Interface()
-	result := db.Model(model).Count(&c)
-	if result.Error != nil {
-		return r, result.Error
+	if err := db.Model(model).Count(&c).Error; err != nil {
+		return r, err
 	}
-	r.TotalCount = int(c)
 	if c <= 0 {
 		return r, nil
 	}
+	r.TotalCount = int(c)
 
 	items := reflect.New(reflect.SliceOf(obj.modelElem))
-	db = db.Offset(form.Pos).Limit(limit)
-	result = db.Find(items.Interface())
+	result := db.Offset(form.Pos).Limit(form.Limit).Find(items.Interface())
 	if result.Error != nil {
 		return r, result.Error
 	}
@@ -661,6 +659,17 @@ func DefaultPrepareQuery(c *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, 
 			return nil, nil, err
 		}
 	}
+
+	pos, limit := form.Pos, form.Limit
+	if pos < 0 {
+		pos = 0
+	}
+	if limit <= 0 || limit > 150 {
+		limit = DefaultQueryLimit
+	}
+
+	form.Pos = pos
+	form.Limit = limit
 	return obj.GetDB(c, false), &form, nil
 }
 

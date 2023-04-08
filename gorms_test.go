@@ -156,6 +156,17 @@ func TestUpdate(t *testing.T) {
 		_, err = GetStruct(db, &user{Name: "update"})
 		assert.NotNil(t, err)
 	}
+	{
+		db := initDB()
+		db.Create(&product{UUID: "aaa", Name: "productAAA"})
+
+		err := Update(db, &product{UUID: "aaa", Name: "productBBB"})
+		assert.Nil(t, err)
+
+		val, err := GetStrID[product](db, "uuid", "aaa")
+		assert.Nil(t, err)
+		assert.Equal(t, "productBBB", val.Name)
+	}
 }
 
 func TestUpdateMap(t *testing.T) {

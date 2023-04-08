@@ -808,6 +808,7 @@ func TestOnRender(t *testing.T) {
 
 	var res QueryResult[[]tuser]
 	err := c.CallPost("/user", nil, &res)
+
 	assert.Nil(t, err)
 	assert.Equal(t, 3, res.TotalCount)
 	assert.Equal(t, 9, res.Items[0].Age)
@@ -846,4 +847,48 @@ func TestOnUpdate(t *testing.T) {
 
 	err = c.CallPatch("/user/2", map[string]any{"name": "notdangerous"}, nil)
 	assert.Nil(t, err)
+}
+
+func TestQueryViews(t *testing.T) {
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(tuser{})
+
+	r := gin.Default()
+	webobject := WebObject{
+		Name:      "user",
+		Model:     tuser{},
+		Editables: []string{"Name"},
+		Filters:   []string{"Name, Age"},
+		Searchs:   []string{"Name"},
+		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+			return db
+		},
+		Views: []QueryView{
+			{
+				Name:   "names",
+				Method: http.MethodGet,
+				Prepare: func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error) {
+					return db, &QueryForm{Limit: -1, viewFields: []string{"ID", "Name"}}, nil
+				},
+			},
+		},
+	}
+	err := webobject.RegisterObject(r)
+	assert.Nil(t, err)
+
+	// create 200 users
+	var user [200]tuser
+	for i := 0; i < len(user); i++ {
+		user[i] = tuser{Name: fmt.Sprintf("user-%d", i), Age: i}
+	}
+	db.CreateInBatches(&user, len(user))
+
+	client := NewTestClient(r)
+	var result QueryResult[[]tuser]
+	err = client.CallGet("/user/names", nil, &result)
+	assert.Nil(t, err)
+	assert.Equal(t, 200, result.TotalCount)
+	assert.Equal(t, 200, len(result.Items))
+	assert.Equal(t, 0, result.Items[10].Age)
+	assert.NotZero(t, result.Items[10].ID)
 }

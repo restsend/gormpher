@@ -79,6 +79,10 @@ func (c *TestClient) Call(method, path string, form, result any) error {
 	return json.Unmarshal(w.Body.Bytes(), &result)
 }
 
+func (c *TestClient) CallGet(path string, form, result any) error {
+	return c.Call(http.MethodGet, path, form, result)
+}
+
 func (c *TestClient) CallDelete(path string, form, result any) error {
 	return c.Call(http.MethodDelete, path, form, result)
 }
