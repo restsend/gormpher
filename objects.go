@@ -108,8 +108,8 @@ type QueryForm struct {
 	Keyword      string   `json:"keyword,omitempty"`
 	Filters      []Filter `json:"filters,omitempty"`
 	Orders       []Order  `json:"orders,omitempty"`
+	ViewFields   []string `json:"-"` // for view
 	searchFields []string `json:"-"` // for keyword
-	viewFields   []string `json:"-"` // for view
 }
 
 type QueryResult[T any] struct {
@@ -566,12 +566,12 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 		}
 	}
 
-	if len(form.viewFields) > 0 {
+	if len(form.ViewFields) > 0 {
 		var stripViewFields []string
-		for _, v := range form.viewFields {
+		for _, v := range form.ViewFields {
 			stripViewFields = append(stripViewFields, namer.ColumnName(obj.tableName, v))
 		}
-		form.viewFields = stripViewFields
+		form.ViewFields = stripViewFields
 	}
 
 	r, err := QueryObjects(db, obj, form)
@@ -623,8 +623,8 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 		db = db.Where(searchKey, sql.Named("keyword", "%"+form.Keyword+"%"))
 	}
 
-	if len(form.viewFields) > 0 {
-		db = db.Select(form.viewFields)
+	if len(form.ViewFields) > 0 {
+		db = db.Select(form.ViewFields)
 	}
 
 	r.Pos = form.Pos

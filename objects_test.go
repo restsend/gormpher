@@ -868,7 +868,7 @@ func TestQueryViews(t *testing.T) {
 				Name:   "names",
 				Method: http.MethodGet,
 				Prepare: func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error) {
-					return db, &QueryForm{Limit: -1, viewFields: []string{"ID", "Name"}}, nil
+					return db, &QueryForm{Limit: -1, ViewFields: []string{"ID", "Name"}}, nil
 				},
 			},
 		},
