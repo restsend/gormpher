@@ -27,8 +27,12 @@ const (
 	FilterOpGreaterOrEqual = ">="
 	FilterOpLess           = "<"
 	FilterOpLessOrEqual    = "<="
-	OrderOpDesc            = "desc"
-	OrderOpAsc             = "asc"
+	FilterOpLike           = "like"
+)
+
+const (
+	OrderOpDesc = "desc"
+	OrderOpAsc  = "asc"
 )
 
 const (
@@ -40,7 +44,6 @@ const (
 	BATCH  = 1 << 6
 )
 
-// type GetDB func() *gorm.DB
 type GetDB func(ctx *gin.Context, isCreate bool) *gorm.DB // designed for group
 type PrepareQuery func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error)
 
@@ -137,7 +140,14 @@ func (f *Filter) GetQuery() string {
 		op = "<"
 	case FilterOpLessOrEqual:
 		op = "<="
+	case FilterOpLike:
+		op = "LIKE"
 	}
+
+	if op == "" {
+		return ""
+	}
+
 	return fmt.Sprintf("%s %s ?", f.Name, op)
 }
 
@@ -147,7 +157,7 @@ func (f *Order) GetQuery() string {
 	if f.Op == OrderOpDesc {
 		return f.Name + " DESC"
 	}
-	return f.Name
+	return f.Name + " ASC"
 }
 
 func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
@@ -310,7 +320,11 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 	val := reflect.New(obj.modelElem).Interface()
 	result := db.Where(pkColName, key).Take(&val)
 	if result.Error != nil {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+		} else {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		}
 		return
 	}
 
@@ -554,7 +568,6 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 
 	result, err := QueryObjects(db, obj, form)
 	if err != nil {
-		log.Println(err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -564,8 +577,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 		if vals.Kind() == reflect.Slice {
 			for i := 0; i < vals.Len(); i++ {
 				v := vals.Index(i).Addr().Interface()
-				err := obj.OnRender(c, v)
-				if err != nil {
+				if err := obj.OnRender(c, v); err != nil {
 					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
@@ -586,6 +598,8 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 		q := v.GetQuery()
 		if q != "" {
 			db = db.Where(fmt.Sprintf("%s.%s", tblName, q), v.Value)
+		} else {
+			log.Println("xxxx")
 		}
 	}
 

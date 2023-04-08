@@ -37,6 +37,22 @@ func Count[T any](db *gorm.DB, where ...any) (int, error) {
 	return int(count), nil
 }
 
+// Update is a generic function to update a record by struct (cannot update zero value)
+func Update[T any](db *gorm.DB, val *T, where ...any) error {
+	if len(where) > 0 {
+		db = db.Where(where[0], where[1:]...)
+	}
+	return db.Model(val).Updates(val).Error
+}
+
+// UpdateMap is a generic function to update a record by map (can update zero value)
+func UpdateMap[T any](db *gorm.DB, val *T, m map[string]any, where ...any) error {
+	if len(where) > 0 {
+		db = db.Where(where[0], where[1:]...)
+	}
+	return db.Model(val).Updates(m).Error
+}
+
 // Get is a generic function to get a record by query
 func Get[T any](db *gorm.DB, query any, args ...any) (*T, error) {
 	var val T
@@ -51,8 +67,8 @@ func Get[T any](db *gorm.DB, query any, args ...any) (*T, error) {
 	return &val, nil
 }
 
-// GetByStruct is a generic function to get a record by struct
-func GetByStruct[T any](db *gorm.DB, val *T, where ...any) (*T, error) {
+// GetStruct is a generic function to get a record by struct
+func GetStruct[T any](db *gorm.DB, val *T, where ...any) (*T, error) {
 	if len(where) > 0 {
 		db = db.Where(where[0], where[1:]...)
 	}
@@ -64,8 +80,8 @@ func GetByStruct[T any](db *gorm.DB, val *T, where ...any) (*T, error) {
 	return val, nil
 }
 
-// GetByMap is a generic function to get a record by map
-func GetByMap[T any](db *gorm.DB, m map[string]any, where ...any) (*T, error) {
+// GetMap is a generic function to get a record by map
+func GetMap[T any](db *gorm.DB, m map[string]any, where ...any) (*T, error) {
 	var val T
 
 	if len(where) > 0 {
@@ -79,9 +95,9 @@ func GetByMap[T any](db *gorm.DB, m map[string]any, where ...any) (*T, error) {
 	return &val, nil
 }
 
-// GetByID is a generic function to get a record by id
+// GetID is a generic function to get a record by id
 // primary key type in table is int
-func GetByID[T any, E ~int](db *gorm.DB, id E, where ...any) (*T, error) {
+func GetID[T any, E ~int](db *gorm.DB, id E, where ...any) (*T, error) {
 	var val T
 
 	if len(where) > 0 {
@@ -95,9 +111,9 @@ func GetByID[T any, E ~int](db *gorm.DB, id E, where ...any) (*T, error) {
 	return &val, nil
 }
 
-// GetByStrID is a generic function to get a record by primary key
+// GetStrID is a generic function to get a record by primary key
 // primary key type in table can be string
-func GetByStrID[T any, E ~string](db *gorm.DB, pk string, id E, where ...any) (*T, error) {
+func GetStrID[T any, E ~string](db *gorm.DB, pk string, id E, where ...any) (*T, error) {
 	var val T
 
 	if len(where) > 0 {
@@ -112,72 +128,58 @@ func GetByStrID[T any, E ~string](db *gorm.DB, pk string, id E, where ...any) (*
 	return &val, nil
 }
 
-// List is a generic function to list records
-func List[T any](db *gorm.DB, where ...any) ([]T, int, error) {
-	return ListPos[T](db, 0, -1, where...)
-}
-
-// ListPos is a generic function to list records with pos and limit
 func ListPos[T any](db *gorm.DB, pos, limit int, where ...any) ([]T, int, error) {
 	return ListPosKeyword[T](db, pos, limit, nil, where...)
 }
 
-// ListPage is a generic function to list records with pagination
-func ListPage[T any](db *gorm.DB, page int, pageSize int, where ...any) ([]T, int, error) {
-	return ListPos[T](db, (page-1)*pageSize, pageSize, where...)
-}
-
-// ListPos is a generic function to list records with order
 func ListOrder[T any](db *gorm.DB, order string, where ...any) ([]T, int, error) {
 	return ListPosOrder[T](db, 0, -1, order, where...)
 }
 
-// ListKeyword is a generic function to list records with keyword
-func ListKeyword[T any](db *gorm.DB, keys map[string]any, where ...any) ([]T, int, error) {
+func ListKeyword[T any](db *gorm.DB, keys map[string]string, where ...any) ([]T, int, error) {
 	return ListPosKeyword[T](db, 0, -1, keys, where...)
 }
 
-// ListPageKeyword is a generic function to list records with pagination and keyword
-func ListPageKeyword[T any](db *gorm.DB, page, pageSize int, keys map[string]any, where ...any) ([]T, int, error) {
-	return ListPosKeywordOrder[T](db, (page-1)*pageSize, pageSize, keys, "", where...)
+func ListFilter[T any](db *gorm.DB, filter []Filter, where ...any) ([]T, int, error) {
+	return ListPosFilter[T](db, 0, -1, filter, where...)
 }
 
-// ListKeywordOrder is a generic function to list records with keyword and order
-func ListPosKeyword[T any](db *gorm.DB, pos, limit int, keys map[string]any, where ...any) ([]T, int, error) {
+func ListPosKeyword[T any](db *gorm.DB, pos, limit int, keys map[string]string, where ...any) ([]T, int, error) {
 	return ListPosKeywordOrder[T](db, pos, limit, keys, "", where...)
 }
 
-// ListPosOrder is a generic function to list records with pos and limit and order
 func ListPosOrder[T any](db *gorm.DB, pos, limit int, order string, where ...any) ([]T, int, error) {
 	return ListPosKeywordOrder[T](db, pos, limit, nil, order, where...)
 }
 
-// ListPageOrder is a generic function to list records with pagination and orde
-func ListPageOrder[T any](db *gorm.DB, page, pageSize int, order string, where ...any) ([]T, int, error) {
-	return ListPosOrder[T](db, (page-1)*pageSize, pageSize, order, where...)
+func ListPosFilter[T any](db *gorm.DB, pos, limit int, filter []Filter, where ...any) ([]T, int, error) {
+	return ListPosKeywordFilterOrder[T](db, pos, limit, nil, filter, "", where...)
 }
 
-// ListPageKeywordOrder is a generic function to list records with pagination, keyword and orde
-func ListPageKeywordOrder[T any](db *gorm.DB, page, pageSize int, keys map[string]any, order string, where ...any) ([]T, int, error) {
-	return ListPosKeywordFilterOrder[T](db, (page-1)*pageSize, pageSize, keys, nil, order, where...)
-}
-
-// ListKeywordOrder is a generic function to list records with pagination, keyword and order
-func ListPosKeywordOrder[T any](db *gorm.DB, pos, limit int, keys map[string]any, order string, where ...any) ([]T, int, error) {
+func ListPosKeywordOrder[T any](db *gorm.DB, pos, limit int, keys map[string]string, order string, where ...any) ([]T, int, error) {
 	return ListPosKeywordFilterOrder[T](db, pos, limit, keys, nil, order, where...)
 }
 
-func ListPageKeywordFilterOrder[T any](db *gorm.DB, page, pageSize int, keys map[string]any, filters map[string]any, order string, where ...any) ([]T, int, error) {
-	return ListPosKeywordFilterOrder[T](db, (page-1)*pageSize, pageSize, keys, filters, order, where...)
+func ListPosKeywordFilter[T any](db *gorm.DB, pos, limit int, keys map[string]string, filter []Filter, where ...any) ([]T, int, error) {
+	return ListPosKeywordFilterOrder[T](db, pos, limit, keys, filter, "", where...)
 }
 
-func ListPosKeywordFilterOrder[T any](db *gorm.DB, pos, limit int, keys map[string]any, filters map[string]any, order string, where ...any) ([]T, int, error) {
+type ListContext struct {
+	Pos      int
+	Limit    int
+	Keywords map[string]string
+	Filters  []Filter
+	Order    string
+	Where    []any
+}
+
+func ListPosKeywordFilterOrder[T any](db *gorm.DB, pos, limit int, keys map[string]string, filters []Filter, order string, where ...any) ([]T, int, error) {
 	var items []T = make([]T, 0)
 	var count int64
 
 	db = db.Model(new(T))
-	db = db.Scopes(KeywordScopes(keys))
-	db = db.Scopes(FilterScopes(filters))
+	db = db.Scopes(KeywordScope(keys))
+	db = db.Scopes(FilterScope(filters))
 
 	if len(where) > 0 {
 		db = db.Where(where[0], where[1:]...)
@@ -202,34 +204,37 @@ func ListPosKeywordFilterOrder[T any](db *gorm.DB, pos, limit int, keys map[stri
 	return items, int(count), nil
 }
 
-func KeywordScopes(keys map[string]any) func(db *gorm.DB) *gorm.DB {
+func List[T any](db *gorm.DB, ctx *ListContext) ([]T, int, error) {
+	if ctx == nil {
+		return ListPosKeywordFilterOrder[T](db, 0, 50, nil, nil, "", nil)
+	}
+	pos, limit := ctx.Pos, ctx.Limit
+	if pos < 0 {
+		pos = 0
+	}
+	switch {
+	case limit <= 0:
+		limit = 50
+	case limit > 200:
+		limit = 200
+	}
+	return ListPosKeywordFilterOrder[T](db, pos, limit, ctx.Keywords, ctx.Filters, ctx.Order, ctx.Where...)
+}
+
+// {"name": "mockname", "nick": "mocknick" }
+// => name LIKE '%mockname%' OR nick LIKE '%mocknick%'
+func KeywordScope(keys map[string]string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		var where string
 
 		for k, v := range keys {
-			if v == nil {
+			if v == "" {
 				continue
 			}
-
-			var val string
-			switch v := v.(type) {
-			case string:
-				val = v
-			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-				val = fmt.Sprintf("%d", v)
-			case bool:
-				val = fmt.Sprintf("%t", v)
-			case float32, float64:
-				val = fmt.Sprintf("%f", v)
-			default:
-				continue
-			}
-
 			if where != "" {
-				where += " AND "
+				where += " OR "
 			}
-
-			where += k + " LIKE '%" + val + "%'"
+			where += k + " LIKE '%" + v + "%'"
 		}
 
 		if where == "" {
@@ -240,7 +245,23 @@ func KeywordScopes(keys map[string]any) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
-func FilterScopes(filters map[string]any) func(db *gorm.DB) *gorm.DB {
+// [{"name": "name", op: "=", "value": "mockname" }, {"name": "age", "op": "<", "value": 20 }]
+// => name = 'mockname' AND age < 20
+func FilterScope(filters []Filter) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		for _, f := range filters {
+			q := f.GetQuery()
+			if q != "" {
+				db = db.Where(q, f.Value)
+			}
+		}
+		return db
+	}
+}
+
+// {"name": "mockname", "age": 10 }
+// => name = 'mockname' AND age = 10
+func FilterEqualScope(filters map[string]any) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		var where string
 
@@ -252,6 +273,9 @@ func FilterScopes(filters map[string]any) func(db *gorm.DB) *gorm.DB {
 			var val string
 			switch v := v.(type) {
 			case string:
+				if v == "" {
+					continue
+				}
 				val = v
 			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 				val = fmt.Sprintf("%d", v)
@@ -277,21 +301,3 @@ func FilterScopes(filters map[string]any) func(db *gorm.DB) *gorm.DB {
 		return db.Where(where)
 	}
 }
-
-// func Paginate(page, pageSize int) func(db *gorm.DB) *gorm.DB {
-// 	return func(db *gorm.DB) *gorm.DB {
-// 		if page <= 0 {
-// 			page = 1
-// 		}
-
-// 		switch {
-// 		case pageSize > 100:
-// 			pageSize = 100
-// 		case pageSize <= 0:
-// 			pageSize = 10
-// 		}
-
-// 		offset := (page - 1) * pageSize
-// 		return db.Offset(offset).Limit(pageSize)
-// 	}
-// }

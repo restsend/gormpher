@@ -194,9 +194,10 @@ func TestObjectQuery(t *testing.T) {
 			{
 				"base_case_4",
 				Param{Keyword: "", Filters: []map[string]any{
-					{"name": "Age", "op": ">=", "value": "10"}},
+					{"name": "Age", "op": ">=", "value": "10"},
+					{"name": "Age", "op": "<=", "value": "12"}},
 				},
-				Except{4},
+				Except{2},
 			},
 			{
 				"base_case_5: multiple filters",
@@ -250,13 +251,55 @@ func TestObjectQuery(t *testing.T) {
 				},
 				Except{2},
 			},
-
 			{
 				"bool_case_3",
 				Param{Filters: []map[string]any{
 					{"name": "enabled", "op": "=", "value": "xxxx"}},
 				},
 				Except{0},
+			},
+			{
+				"like_case_1",
+				Param{Filters: []map[string]any{
+					{"name": "name", "op": "like", "value": "%a%"},
+				}},
+				Except{2},
+			},
+			{
+				"like_case_2",
+				Param{Filters: []map[string]any{
+					{"name": "name", "op": "like", "value": "%o%"},
+					{"name": "name", "op": "like", "value": "%b%"},
+				}},
+				Except{1},
+			},
+			{
+				"like_case_3",
+				Param{Filters: []map[string]any{
+					{"name": "Age", "op": "like", "value": "%3%"},
+				}},
+				Except{2},
+			},
+			{
+				"not_int_case_1",
+				Param{Filters: []map[string]any{
+					{"name": "name", "op": "not_in", "value": []any{"alice", "bob", "foo"}},
+				}},
+				Except{1},
+			},
+			{
+				"not_int_case_2",
+				Param{Filters: []map[string]any{
+					{"name": "Age", "op": "not_in", "value": []any{10, 13}},
+				}},
+				Except{0},
+			},
+			{
+				"bad_case_1: for op not exist",
+				Param{Filters: []map[string]any{
+					{"name": "name", "op": "notexist", "value": "xxxx"},
+				}},
+				Except{4},
 			},
 		}
 
@@ -786,8 +829,7 @@ func TestOnCreate(t *testing.T) {
 	c, _ := initHookTest(t)
 
 	err := c.CallPut("/user", tuser{Name: "dangerous"}, nil)
-	assert.NotNil(t, err)
-	log.Println(err) // alice is not allowed to create
+	assert.NotNil(t, err) // alice is not allowed to create
 
 	err = c.CallPut("/user", tuser{Name: "notdangerous"}, nil)
 	assert.Nil(t, err)
