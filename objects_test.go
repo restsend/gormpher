@@ -33,10 +33,10 @@ func TestObjectCRUD(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Model:     User{},
-		Editables: []string{"Name"},
-		Filters:   []string{"Name"},
-		Searchs:   []string{"Name"},
+		Model:       User{},
+		Editables:   []string{"Name"},
+		Filterables: []string{"Name"},
+		Searchables: []string{"Name"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -143,9 +143,9 @@ func TestObjectQuery(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Model:   User{},
-		Filters: []string{"Name", "Age", "Birthday", "Enabled"},
-		Searchs: []string{"Name"},
+		Model:       User{},
+		Filterables: []string{"Name", "Age", "Birthday", "Enabled"},
+		Searchables: []string{"Name"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -341,8 +341,8 @@ func TestObjectOrder(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Model:  User{},
-		Orders: []string{"UUID", "Name", "Age", "CreatedAt"},
+		Model:      User{},
+		Orderables: []string{"UUID", "Name", "Age", "CreatedAt"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -661,8 +661,8 @@ func TestObjectRegister(t *testing.T) {
 
 				r := gin.Default()
 				webobject := WebObject{
-					Model:   User{},
-					Filters: tt.params.Filterable,
+					Model:       User{},
+					Filterables: tt.params.Filterable,
 					GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 						return db
 					},
@@ -755,11 +755,11 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 	db.Create(&tuser{ID: 3, Name: "clash", Age: 11})
 
 	webobject := WebObject{
-		Name:      "user",
-		Model:     tuser{},
-		Editables: []string{"Name"},
-		Filters:   []string{"Name, Age"},
-		Searchs:   []string{"Name"},
+		Name:        "user",
+		Model:       tuser{},
+		Editables:   []string{"Name"},
+		Filterables: []string{"Name, Age"},
+		Searchables: []string{"Name"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -855,11 +855,11 @@ func TestQueryViews(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Name:      "user",
-		Model:     tuser{},
-		Editables: []string{"Name"},
-		Filters:   []string{"Name, Age"},
-		Searchs:   []string{"Name"},
+		Name:        "user",
+		Model:       tuser{},
+		Editables:   []string{"Name"},
+		Filterables: []string{"Name, Age"},
+		Searchables: []string{"Name"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -867,7 +867,7 @@ func TestQueryViews(t *testing.T) {
 			{
 				Name:   "names",
 				Method: http.MethodGet,
-				Prepare: func(ctx *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error) {
+				Prepare: func(db *gorm.DB, ctx *gin.Context) (*gorm.DB, *QueryForm, error) {
 					return db, &QueryForm{Limit: -1, ViewFields: []string{"ID", "Name"}}, nil
 				},
 			},

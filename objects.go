@@ -45,7 +45,7 @@ const (
 )
 
 type GetDB func(c *gin.Context, isCreate bool) *gorm.DB // designed for group
-type PrepareQuery func(c *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error)
+type PrepareQuery func(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error)
 
 type (
 	CreateFunc func(ctx *gin.Context, vptr any) error
@@ -61,18 +61,18 @@ type QueryView struct {
 }
 
 type WebObject struct {
-	Model     any
-	Group     string
-	Name      string
-	Editables []string
-	Filters   []string
-	Orders    []string
-	Searchs   []string
-	GetDB     GetDB
-	OnCreate  CreateFunc
-	OnUpdate  UpdateFunc
-	OnDelete  DeleteFunc
-	OnRender  RenderFunc
+	Model       any
+	Group       string
+	Name        string
+	Editables   []string
+	Filterables []string
+	Orderables  []string
+	Searchables []string
+	GetDB       GetDB
+	OnCreate    CreateFunc
+	OnUpdate    UpdateFunc
+	OnDelete    DeleteFunc
+	OnRender    RenderFunc
 
 	Views        []QueryView
 	AllowMethods int
@@ -503,7 +503,7 @@ func handleBatchDelete(c *gin.Context, obj *WebObject) {
 }
 
 func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery) {
-	db, form, err := prepareQuery(c, obj)
+	db, form, err := prepareQuery(obj.GetDB(c, false), c)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -513,7 +513,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 
 	// Use struct{} makes map like set.
 	var filterFields = make(map[string]struct{})
-	for _, k := range obj.Filters {
+	for _, k := range obj.Filterables {
 		filterFields[k] = struct{}{}
 	}
 	if len(filterFields) > 0 {
@@ -537,7 +537,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 	}
 
 	var orderFields = make(map[string]struct{})
-	for _, k := range obj.Orders {
+	for _, k := range obj.Orderables {
 		orderFields[k] = struct{}{}
 	}
 	if len(orderFields) > 0 {
@@ -561,7 +561,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 
 	if form.Keyword != "" {
 		form.searchFields = []string{}
-		for _, v := range obj.Searchs {
+		for _, v := range obj.Searchables {
 			form.searchFields = append(form.searchFields, namer.ColumnName(obj.tableName, v))
 		}
 	}
@@ -652,7 +652,7 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 }
 
 // DefaultPrepareQuery return default QueryForm.
-func DefaultPrepareQuery(c *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, error) {
+func DefaultPrepareQuery(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error) {
 	var form QueryForm
 	if c.Request.ContentLength > 0 {
 		if err := c.BindJSON(&form); err != nil {
@@ -660,17 +660,14 @@ func DefaultPrepareQuery(c *gin.Context, obj *WebObject) (*gorm.DB, *QueryForm, 
 		}
 	}
 
-	pos, limit := form.Pos, form.Limit
-	if pos < 0 {
-		pos = 0
+	if form.Pos < 0 {
+		form.Pos = 0
 	}
-	if limit <= 0 || limit > 150 {
-		limit = DefaultQueryLimit
+	if form.Limit <= 0 || form.Limit > 150 {
+		form.Limit = DefaultQueryLimit
 	}
 
-	form.Pos = pos
-	form.Limit = limit
-	return obj.GetDB(c, false), &form, nil
+	return db, &form, nil
 }
 
 /*

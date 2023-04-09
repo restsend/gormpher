@@ -83,12 +83,12 @@ func woToAo(wo WebObject) AdminObject {
 	ao.fieldsToJsons = fieldsToJsons
 
 	ao.Filters = make([]string, 0)
-	for _, f := range wo.Filters {
+	for _, f := range wo.Filterables {
 		ao.Filters = append(ao.Filters, fieldsToJsons[f])
 	}
 
 	ao.Orders = make([]string, 0)
-	for _, f := range wo.Orders {
+	for _, f := range wo.Orderables {
 		ao.Orders = append(ao.Orders, fieldsToJsons[f])
 	}
 
@@ -98,7 +98,7 @@ func woToAo(wo WebObject) AdminObject {
 	}
 
 	ao.Searchs = make([]string, 0)
-	for _, f := range wo.Searchs {
+	for _, f := range wo.Searchables {
 		ao.Searchs = append(ao.Searchs, fieldsToJsons[f])
 	}
 

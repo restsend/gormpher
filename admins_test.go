@@ -46,11 +46,11 @@ func TestWoToAo(t *testing.T) {
 	}
 
 	wo := WebObject{
-		Model:     User{},
-		Editables: []string{"Name"},
-		Filters:   []string{"Name", "Age", "ID"},
-		Searchs:   []string{"Name", "ID"},
-		Orders:    []string{"LastLogin"},
+		Model:       User{},
+		Editables:   []string{"Name"},
+		Filterables: []string{"Name", "Age", "ID"},
+		Searchables: []string{"Name", "ID"},
+		Orderables:  []string{"LastLogin"},
 	}
 
 	ao := woToAo(wo)
@@ -82,12 +82,12 @@ func TestRegisterSingleObject(t *testing.T) {
 	ar := gin.Default().Group("admin")
 
 	wo1 := WebObject{
-		Name:      "user",
-		Model:     User{},
-		Editables: []string{"Name"},
-		Filters:   []string{"Name", "Age", "ID"},
-		Searchs:   []string{"Name", "ID"},
-		Orders:    []string{"LastLogin"},
+		Name:        "user",
+		Model:       User{},
+		Editables:   []string{"Name"},
+		Filterables: []string{"Name", "Age", "ID"},
+		Searchables: []string{"Name", "ID"},
+		Orderables:  []string{"LastLogin"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -125,23 +125,23 @@ func TestRegisterObjects(t *testing.T) {
 
 	wos := []WebObject{
 		{
-			Name:      "user1",
-			Model:     User{},
-			Editables: []string{"Name"},
-			Filters:   []string{"Name", "Age", "ID"},
-			Searchs:   []string{"Name", "ID"},
-			Orders:    []string{"LastLogin"},
+			Name:        "user1",
+			Model:       User{},
+			Editables:   []string{"Name"},
+			Filterables: []string{"Name", "Age", "ID"},
+			Searchables: []string{"Name", "ID"},
+			Orderables:  []string{"LastLogin"},
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 				return db
 			},
 		},
 		{
-			Name:      "user2",
-			Model:     User{},
-			Editables: []string{"Name"},
-			Filters:   []string{"Name", "Age", "ID"},
-			Searchs:   []string{"Name", "ID"},
-			Orders:    []string{"LastLogin"},
+			Name:        "user2",
+			Model:       User{},
+			Editables:   []string{"Name"},
+			Filterables: []string{"Name", "Age", "ID"},
+			Searchables: []string{"Name", "ID"},
+			Orderables:  []string{"LastLogin"},
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 				return db
 			},

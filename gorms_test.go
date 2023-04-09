@@ -10,7 +10,7 @@ import (
 )
 
 type user struct {
-	ID        uint `gorm:"primarykey"`
+	UUID      uint `gorm:"primarykey"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	Name      string
@@ -42,7 +42,7 @@ func TestNew(t *testing.T) {
 		Enabled: true,
 	})
 	assert.Nil(t, err)
-	assert.NotEmpty(t, val.ID)
+	assert.NotEmpty(t, val.UUID)
 
 	p, err := New(db, &product{
 		UUID:   "aaaa",
@@ -84,13 +84,13 @@ func TestDelete(t *testing.T) {
 	count, _ := Count[user](db, nil)
 	assert.Equal(t, 2, count)
 
-	err = Delete(db, &user{ID: 2})
+	err = Delete(db, &user{UUID: 2})
 	assert.Nil(t, err)
 	count, _ = Count[user](db, nil)
 	assert.Equal(t, 1, count)
 
 	// with age = -1, unable to delete
-	err = Delete(db, &user{ID: 3, Name: "user3", Age: -1})
+	err = Delete(db, &user{UUID: 3, Name: "user3", Age: -1})
 	assert.Nil(t, err)
 	count, _ = Count[user](db, nil)
 	assert.Equal(t, 1, count)
@@ -101,34 +101,79 @@ func TestDelete(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
+func TestDeleteByID(t *testing.T) {
+	db := initDB()
+	{
+		db.Create(&user{Name: "user1", Email: "user1@example.com", Age: 10})
+		db.Create(&user{Name: "user2", Email: "user2@example.com", Age: 20})
+		db.Create(&user{Name: "user3", Email: "user3@example.com", Age: 30})
+
+		err := DeleteByID[user](db, 1)
+		assert.Nil(t, err)
+
+		count, _ := Count[user](db, nil)
+		assert.Equal(t, 2, count)
+	}
+	{
+		db.Create(&product{UUID: "aaaa", Name: "demoproduct", CanBuy: true})
+		db.Create(&product{UUID: "bbbb", Name: "demoproduct", CanBuy: true})
+		db.Create(&product{UUID: "cccc", Name: "demoproduct", CanBuy: true})
+
+		err := DeleteByID[product](db, "aaaa")
+		assert.Nil(t, err)
+
+		count, _ := Count[product](db, nil)
+		assert.Equal(t, 2, count)
+	}
+}
+
+func TestDeleteByMap(t *testing.T) {
+	{
+		db := initDB()
+		db.Create(&user{Name: "user1", Email: "user1@example.com", Age: 10})
+		db.Create(&user{Name: "user2", Email: "user2@example.com", Age: 20})
+		db.Create(&user{Name: "user3", Email: "user3@example.com", Age: 30})
+
+		err := DeleteByMap[user](db, map[string]any{"name": "user1"})
+		assert.Nil(t, err)
+
+		count, _ := Count[user](db, nil)
+		assert.Equal(t, 2, count)
+	}
+	{
+		db := initDB()
+		db.Create(&product{UUID: "aaaa", Name: "demoproductA", CanBuy: true})
+		db.Create(&product{UUID: "bbbb", Name: "demoproductB", CanBuy: true})
+		db.Create(&product{UUID: "cccc", Name: "demoproductC", CanBuy: true})
+
+		err := DeleteByMap[product](db, map[string]any{"uuid": "aaaa"})
+		assert.Nil(t, err)
+		count, _ := Count[product](db, nil)
+		assert.Equal(t, 2, count)
+
+		err = DeleteByMap[product](db.Debug(), map[string]any{"name": "demoproductB"})
+		assert.Nil(t, err)
+		count, _ = Count[product](db, nil)
+		assert.Equal(t, 1, count)
+	}
+}
+
 func TestGet(t *testing.T) {
 	db := initDB()
 
 	db.Create(&user{Name: "demo", Enabled: true})
-
 	{
-		val, err := Get[user](db, "name = ? AND enabled = ?", "demo", true)
-		assert.Nil(t, err)
-		assert.NotNil(t, val.ID)
-	}
-}
-
-func TestGetStruct(t *testing.T) {
-	db := initDB()
-
-	db.Create(&user{Name: "demo", Enabled: true})
-	{
-		val, err := GetStruct(db, &user{})
+		val, err := Get(db, &user{})
 		assert.Nil(t, err)
 		assert.NotNil(t, val)
 	}
 	{
-		val, err := GetStruct(db, &user{Name: "demo", Enabled: true})
+		val, err := Get(db, &user{Name: "demo", Enabled: true})
 		assert.Nil(t, err)
 		assert.NotNil(t, val)
 	}
 	{
-		val, err := GetStruct(db, &user{}, "enabled", true)
+		val, err := Get(db, &user{}, "enabled", true)
 		assert.Nil(t, err)
 		assert.NotNil(t, val)
 	}
@@ -137,25 +182,26 @@ func TestGetStruct(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	{
 		db := initDB()
-		db.Create(&user{ID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
+		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
 
-		err := Update(db, &user{ID: 1, Name: "update"}, "email", "demo@example.com")
+		err := Update(db, &user{UUID: 1, Name: "update"}, "email", "demo@example.com")
 		assert.Nil(t, err)
 
-		val, _ := GetStruct(db, &user{Name: "update"})
+		val, _ := Get(db, &user{Name: "update"})
 		assert.Equal(t, "update", val.Name)
 	}
 	// not found
 	{
 		db := initDB()
-		db.Create(&user{ID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
+		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
 
-		err := Update(db, &user{ID: 1, Name: "update", Email: "update@example.com"}, "name", "xxx")
+		err := Update(db, &user{UUID: 1, Name: "update", Email: "update@example.com"}, "name", "xxx")
 		assert.Nil(t, err)
 
-		_, err = GetStruct(db, &user{Name: "update"})
+		_, err = Get(db, &user{Name: "update"})
 		assert.NotNil(t, err)
 	}
+	// Update by string id
 	{
 		db := initDB()
 		db.Create(&product{UUID: "aaa", Name: "productAAA"})
@@ -163,7 +209,7 @@ func TestUpdate(t *testing.T) {
 		err := Update(db, &product{UUID: "aaa", Name: "productBBB"})
 		assert.Nil(t, err)
 
-		val, err := GetStrID[product](db, "uuid", "aaa")
+		val, err := GetByID[product](db, "aaa")
 		assert.Nil(t, err)
 		assert.Equal(t, "productBBB", val.Name)
 	}
@@ -172,23 +218,23 @@ func TestUpdate(t *testing.T) {
 func TestUpdateMap(t *testing.T) {
 	{
 		db := initDB()
-		db.Create(&user{ID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
+		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
 
-		err := UpdateMap(db, &user{ID: 1}, map[string]any{"name": "update"}, "email", "demo@example.com")
+		err := UpdateByMap(db, &user{UUID: 1}, map[string]any{"name": "update"}, "email", "demo@example.com")
 		assert.Nil(t, err)
 
-		val, _ := GetStruct(db, &user{Name: "update"})
+		val, _ := Get(db, &user{Name: "update"})
 		assert.Equal(t, "update", val.Name)
 	}
 	// not found
 	{
 		db := initDB()
-		db.Create(&user{ID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
+		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
 
-		err := UpdateMap(db, &user{ID: 1}, map[string]any{"name": "update"}, "name", "xxx")
+		err := UpdateByMap(db, &user{UUID: 1}, map[string]any{"name": "update"}, "name", "xxx")
 		assert.Nil(t, err)
 
-		_, err = GetStruct(db, &user{Name: "update"})
+		_, err = Get(db, &user{Name: "update"})
 		assert.NotNil(t, err)
 	}
 }
@@ -198,35 +244,35 @@ func TestGetByMap(t *testing.T) {
 
 	db.Create(&user{Name: "demo", Enabled: true})
 
-	val, err := GetMap[user](db, map[string]any{"name": "demo", "enabled": true})
+	val, err := GetByMap[user](db, map[string]any{"name": "demo", "enabled": true})
 	assert.Nil(t, err)
 	assert.NotNil(t, val)
 }
 
-func TestGetByIcD(t *testing.T) {
+func TestGetByID(t *testing.T) {
 	db := initDB()
 
 	{
 		db.Create(&user{Name: "demo", Enabled: true})
 
-		val, err := GetID[user](db, 1)
+		val, err := GetByID[user](db, 1)
 		assert.Nil(t, err)
-		assert.NotEmpty(t, val.ID)
+		assert.NotEmpty(t, val.UUID)
 
-		val, err = GetID[user](db, 1, "name = ? AND enabled = ?", "demo", true)
+		val, err = GetByID[user](db, 1, "name = ? AND enabled = ?", "demo", true)
 		assert.Nil(t, err)
-		assert.NotEmpty(t, val.ID)
+		assert.NotEmpty(t, val.UUID)
 	}
 	{
 		db.Create(&product{UUID: "aaaa", Name: "demoproduct"})
 
 		// SELECT * FROM `products` WHERE uuid = "aaaa" LIMIT 1
-		val, err := GetStrID[product](db, "uuid", "aaaa")
+		val, err := GetByID[product](db, "aaaa")
 		assert.Nil(t, err)
 		assert.NotNil(t, val)
 
 		// SELECT * FROM `products` WHERE `name` = "demoproduct" AND uuid = "aaaa" LIMIT 1
-		val, err = GetStrID[product](db, "uuid", "aaaa", "name = ? AND can_buy = ?", "demoproduct", false)
+		val, err = GetByID[product](db, "aaaa", "name = ? AND can_buy = ?", "demoproduct", false)
 		assert.Nil(t, err)
 		assert.NotNil(t, val)
 	}
@@ -542,5 +588,32 @@ func TestKeywordScopes(t *testing.T) {
 		r := db.Scopes(KeywordScope(keywords)).Find(&list)
 		assert.Nil(t, r.Error)
 		assert.Equal(t, 3, len(list))
+	}
+}
+
+func TestGetPkColumnName(t *testing.T) {
+	{
+		type User struct {
+			ID int64
+		}
+		assert.Equal(t, "id", getPkColumnName[User]())
+	}
+	{
+		type User struct {
+			ID int64 `gorm:"primary_key"`
+		}
+		assert.Equal(t, "id", getPkColumnName[User]())
+	}
+	{
+		type User struct {
+			UUID int64 `gorm:"primary_key"`
+		}
+		assert.Equal(t, "uuid", getPkColumnName[User]())
+	}
+	{
+		type User struct {
+			UUID int64 `gorm:"primaryKey"`
+		}
+		assert.Equal(t, "uuid", getPkColumnName[User]())
 	}
 }

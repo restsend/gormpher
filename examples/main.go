@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"math/rand"
 	"time"
@@ -13,7 +14,7 @@ import (
 
 type Product struct {
 	UUID      string    `json:"id" gorm:"primarykey"`
-	GroupID   int       `json:"groupId"`
+	GroupID   int       `json:"-"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -46,7 +47,7 @@ func main() {
 	objs := GetWebObjects(db)
 
 	// visit API: http://localhost:8890/api
-	gormpher.RegisterObjects(r.Group("api"), objs)
+	gormpher.RegisterObjects(r, objs)
 	// visit Admin: http://localhost:8890/admin
 	gormpher.RegisterObjectsWithAdmin(r.Group("admin"), objs)
 
@@ -55,7 +56,8 @@ func main() {
 
 func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 	return []gormpher.WebObject{
-		// Check API File: product.http
+		// Basic Demo
+		// Check API File: user.http
 		// PUT 		http://localhost:8890/user
 		// GET 		http://localhost:8890/user/:key
 		// PATCH	http://localhost:8890/user/:key
@@ -63,12 +65,31 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/user/:key
 		// DELETE http://localhost:8890/user
 		{
-			Name:      "product",
-			Model:     &Product{},
-			Searchs:   []string{"Name"},
-			Editables: []string{"Name", "Enabled"},
-			Filters:   []string{"Name", "CreatedAt", "Enabled"},
-			Orders:    []string{"CreatedAt"},
+			Name:        "user",
+			Model:       &User{},
+			Searchables: []string{"Name", "Enabled"},
+			Editables:   []string{"Name", "Age", "Enabled"},
+			Filterables: []string{"Name", "CreatedAt", "Age", "Enabled"},
+			Orderables:  []string{"CreatedAt", "Age", "Enabled"},
+			GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB {
+				return db
+			},
+		},
+		// Advanced Demo
+		// Check API File: product.http
+		// PUT 		http://localhost:8890/product
+		// GET 		http://localhost:8890/product/:key
+		// PATCH	http://localhost:8890/product/:key
+		// POST 	http://localhost:8890/product
+		// DELETE http://localhost:8890/product/:key
+		// DELETE http://localhost:8890/product
+		{
+			Name:        "product",
+			Model:       &Product{},
+			Searchables: []string{"Name"},
+			Editables:   []string{"Name", "Enabled"},
+			Filterables: []string{"Name", "CreatedAt", "Enabled"},
+			Orderables:  []string{"CreatedAt"},
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 				return db
 			},
@@ -78,23 +99,31 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 				p.GroupID = rand.Intn(5)
 				return nil
 			},
-		},
-		// Check API File: user.http
-		// PUT 		http://localhost:8890/user
-		// GET 		http://localhost:8890/user/:key
-		// PATCH	http://localhost:8890/user/:key
-		// POST 	http://localhost:8890/user
-		// DELETE http://localhost:8890/user/:key
-		// DELETE http://localhost:8890/user
-		{
-			Name:      "user",
-			Model:     &User{},
-			Searchs:   []string{"Name", "Enabled"},
-			Editables: []string{"Name", "Age", "Enabled"},
-			Filters:   []string{"Name", "CreatedAt", "Age", "Enabled"},
-			Orders:    []string{"CreatedAt", "Age", "Enabled"},
-			GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB {
-				return db
+			OnDelete: func(ctx *gin.Context, vptr any) error {
+				p := (vptr).(*Product)
+				if p.Enabled {
+					return errors.New("product is enabled, can not delete")
+				}
+				return nil
+			},
+			// Custom Query View
+			// GET http://localhost:8890/product/all_enabled
+			Views: []gormpher.QueryView{
+				{
+					Name:   "all_enabled",
+					Method: "GET",
+					Prepare: func(db *gorm.DB, c *gin.Context) (*gorm.DB, *gormpher.QueryForm, error) {
+						// SELECT (id, name) FROM products WHERE enabled = true
+						queryForm := &gormpher.QueryForm{
+							Limit: -1,
+							Filters: []gormpher.Filter{
+								{Name: "enabled", Op: "=", Value: true}, // JSON format
+							},
+							ViewFields: []string{"UUID", "Name"},
+						}
+						return db, queryForm, nil
+					},
+				},
 			},
 		},
 	}
