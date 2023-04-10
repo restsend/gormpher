@@ -221,7 +221,7 @@ func ListModel[T, R any](db *gorm.DB, ctx *ListContext) ([]R, int, error) {
 	case limit > 200:
 		limit = 200
 	}
-	return ListPosKeywordFilterOrderModel[T, R](db, ctx.Pos, ctx.Limit, ctx.Keywords, ctx.Filters, ctx.Order, ctx.Where...)
+	return ListPosKeywordFilterOrderModel[T, R](db, pos, limit, ctx.Keywords, ctx.Filters, ctx.Order, ctx.Where...)
 }
 
 // Pagination functions
