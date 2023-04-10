@@ -263,7 +263,7 @@ func KeywordScope(keys map[string]string) func(db *gorm.DB) *gorm.DB {
 			if where != "" {
 				where += " OR "
 			}
-			where += k + " LIKE '%" + v + "%'"
+			where += fmt.Sprintf("`%s` LIKE '%%%s%%'", k, v)
 		}
 
 		if where == "" {
