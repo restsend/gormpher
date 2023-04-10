@@ -2,7 +2,7 @@ package gormpher
 
 import "gorm.io/gorm"
 
-type QueryFunc[T any] func(*Query[T])
+// type QueryFunc[T any] func(*Query[T])
 
 type Query[T any] struct {
 	db       *gorm.DB
@@ -14,21 +14,15 @@ type Query[T any] struct {
 	wheres   []any
 }
 
-func (q *Query[T]) List(opts ...QueryFunc[T]) ([]T, int, error) {
-	for _, opt := range opts {
-		opt(q)
-	}
+func (q *Query[T]) List(wheres ...any) ([]T, int, error) {
 	return ListPosKeywordFilterOrder[T](q.db, q.pos, q.limit, q.keywords, q.filters, q.orders, q.wheres...)
 }
 
-func NewQuery[T any](db *gorm.DB, opts ...QueryFunc[T]) *Query[T] {
+func NewQuery[T any](db *gorm.DB) *Query[T] {
 	q := &Query[T]{
 		db:    db,
 		pos:   0,
 		limit: 50,
-	}
-	for _, opt := range opts {
-		opt(q)
 	}
 	return q
 }
@@ -58,10 +52,5 @@ func (q *Query[T]) Filter(name, op string, value any) *Query[T] {
 
 func (q *Query[T]) Order(order string) *Query[T] {
 	q.orders += order
-	return q
-}
-
-func (q *Query[T]) WithWhere(where ...any) *Query[T] {
-	q.wheres = where
 	return q
 }

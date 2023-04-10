@@ -151,7 +151,7 @@ func TestDeleteByMap(t *testing.T) {
 		count, _ := Count[product](db, nil)
 		assert.Equal(t, 2, count)
 
-		err = DeleteByMap[product](db.Debug(), map[string]any{"name": "demoproductB"})
+		err = DeleteByMap[product](db, map[string]any{"name": "demoproductB"})
 		assert.Nil(t, err)
 		count, _ = Count[product](db, nil)
 		assert.Equal(t, 1, count)
@@ -420,7 +420,7 @@ func TestListPageKeywordOrder(t *testing.T) {
 	}
 }
 
-func TestListPageKeywordFilterOrder(t *testing.T) {
+func TestListPosKeywordFilterOrder(t *testing.T) {
 	db := initDB()
 
 	db.Create(&user{Name: "user1", Email: "user1@example.com", Age: 10})
@@ -509,7 +509,7 @@ func TestListContext(t *testing.T) {
 		assert.Equal(t, "user1", list[0].Name)
 	}
 	{
-		list, count, err := List[user](db.Debug(), &ListContext{
+		list, count, err := List[user](db, &ListContext{
 			Pos:      0,
 			Limit:    5,
 			Keywords: map[string]string{"name": "user", "email": "example"},
@@ -520,6 +520,60 @@ func TestListContext(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, 1, count)
 		assert.Equal(t, "user2", list[0].Name)
+	}
+}
+
+func TestListModelContext(t *testing.T) {
+	db := initDB()
+
+	db.Create(&user{Name: "user1", Email: "user1@example.com", Age: 10})
+	db.Create(&user{Name: "user2", Email: "user2@example.com", Age: 20})
+	db.Create(&user{Name: "user3", Email: "user3@example.com", Age: 30})
+
+	type uservo struct {
+		Name string
+		Age  int
+	}
+
+	{
+		list, count, err := ListModel[user, uservo](db, nil)
+		assert.Nil(t, err)
+		assert.Equal(t, 3, count)
+		assert.Equal(t, "user1", list[0].Name)
+	}
+	{
+		list, count, err := ListModel[user, uservo](db, &ListContext{
+			Pos:      0,
+			Limit:    5,
+			Keywords: map[string]string{"name": "user", "email": "example"},
+			Filters: []Filter{
+				{Name: "name", Op: "=", Value: "user2"},
+			},
+		})
+		assert.Nil(t, err)
+		assert.Equal(t, 1, count)
+		assert.Equal(t, "user2", list[0].Name)
+	}
+}
+
+func TestListPosKeywordFilterOrderModel(t *testing.T) {
+	db := initDB()
+
+	db.Create(&user{Name: "user1", Email: "user1@example.com", Age: 10})
+	db.Create(&user{Name: "user2", Email: "user2@example.com", Age: 20})
+	db.Create(&user{Name: "user3", Email: "user3@example.com", Age: 30})
+
+	type uservo struct {
+		UUID uint `gorm:"primarykey"`
+		Name string
+	}
+
+	{
+		list, count, err := ListPosKeywordFilterOrderModel[user, uservo](db, 0, 5, nil, nil, "")
+		assert.Nil(t, err)
+		assert.Equal(t, 3, count)
+		assert.Equal(t, "user1", list[0].Name)
+		assert.NotEmpty(t, list[0].UUID)
 	}
 }
 
