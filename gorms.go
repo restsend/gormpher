@@ -100,11 +100,35 @@ func Update[T any](db *gorm.DB, val *T, where ...any) error {
 	return db.Model(val).Updates(val).Error
 }
 
-func UpdateByMap[T any](db *gorm.DB, val *T, m map[string]any, where ...any) error {
+func UpdateByID[T any, E ~string | ~int](db *gorm.DB, id E, val *T, where ...any) error {
 	if len(where) > 0 {
 		db = db.Where(where[0], where[1:]...)
 	}
-	return db.Model(val).Updates(m).Error
+
+	return db.Model(new(T)).Where(getPkColumnName[T](), id).Updates(val).Error
+}
+
+func UpdateSelectByID[T any, E ~string | ~int](db *gorm.DB, id E, selects []string, val *T, where ...any) error {
+	pk := getPkColumnName[T]()
+
+	for _, s := range selects {
+		if s == pk {
+			return fmt.Errorf("can not update primary key")
+		}
+	}
+
+	if len(where) > 0 {
+		db = db.Where(where[0], where[1:]...)
+	}
+
+	return db.Model(new(T)).Where(getPkColumnName[T](), id).Select(selects).Updates(val).Error
+}
+
+func UpdateMapByID[T any, E ~string | ~int](db *gorm.DB, id E, m map[string]any, where ...any) error {
+	if len(where) > 0 {
+		db = db.Where(where[0], where[1:]...)
+	}
+	return db.Model(new(T)).Where(getPkColumnName[T](), id).Updates(m).Error
 }
 
 // Query List

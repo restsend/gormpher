@@ -179,6 +179,19 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestUpdateByID(t *testing.T) {
+	{
+		db := initDB()
+		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
+
+		err := UpdateByID(db, 1, &user{Name: "update"}, "email", "demo@example.com")
+		assert.Nil(t, err)
+
+		val, _ := Get(db, &user{Name: "update"})
+		assert.Equal(t, "update", val.Name)
+	}
+}
+
 func TestUpdate(t *testing.T) {
 	{
 		db := initDB()
@@ -220,7 +233,7 @@ func TestUpdateMap(t *testing.T) {
 		db := initDB()
 		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
 
-		err := UpdateByMap(db, &user{UUID: 1}, map[string]any{"name": "update"}, "email", "demo@example.com")
+		err := UpdateMapByID[user](db, 1, map[string]any{"name": "update"}, "email", "demo@example.com")
 		assert.Nil(t, err)
 
 		val, _ := Get(db, &user{Name: "update"})
@@ -231,10 +244,37 @@ func TestUpdateMap(t *testing.T) {
 		db := initDB()
 		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
 
-		err := UpdateByMap(db, &user{UUID: 1}, map[string]any{"name": "update"}, "name", "xxx")
+		err := UpdateMapByID[user](db, 1, map[string]any{"name": "update"}, "name", "xxx")
 		assert.Nil(t, err)
 
 		_, err = Get(db, &user{Name: "update"})
+		assert.NotNil(t, err)
+	}
+}
+
+func TestUpdateSelect(t *testing.T) {
+	{
+		db := initDB()
+		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
+
+		err := UpdateSelectByID(db, 1,
+			[]string{"name", "email", "enabled"},
+			&user{Name: "update", Email: "", Age: 12, Enabled: false},
+		)
+		assert.Nil(t, err)
+
+		val, _ := Get(db, &user{Name: "update"})
+		assert.Equal(t, "", val.Email)      // ok
+		assert.Equal(t, "update", val.Name) // ok
+		assert.Equal(t, false, val.Enabled) // ok
+		assert.Equal(t, 11, val.Age)        // fail
+	}
+	// can't update primary key
+	{
+		db := initDB()
+		db.Create(&user{UUID: 1, Name: "demo", Email: "demo@example.com", Age: 11, Enabled: true})
+
+		err := UpdateSelectByID(db, 1, []string{"uuid", "name", "email"}, &user{UUID: 1, Name: "update", Email: ""})
 		assert.NotNil(t, err)
 	}
 }

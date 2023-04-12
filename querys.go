@@ -2,8 +2,6 @@ package gormpher
 
 import "gorm.io/gorm"
 
-// type QueryFunc[T any] func(*Query[T])
-
 type Query[T any] struct {
 	db       *gorm.DB
 	pos      int
