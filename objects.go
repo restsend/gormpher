@@ -225,7 +225,7 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 	return nil
 }
 
-func RegisterObject(r gin.IRouter, obj *WebObject) error {
+func RegisterObject(r gin.IRoutes, obj *WebObject) error {
 	return obj.RegisterObject(r)
 }
 
