@@ -17,6 +17,7 @@ import (
 
 const (
 	DefaultQueryLimit = 50
+	MaxQueryLimit     = 150
 )
 
 const (
@@ -46,7 +47,7 @@ const (
 )
 
 type GetDB func(c *gin.Context, isCreate bool) *gorm.DB // designed for group
-type PrepareQuery func(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error)
+type PrepareQuery func(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB, *QueryForm, error)
 
 type (
 	CreateFunc func(ctx *gin.Context, vptr any, vals map[string]any) error
@@ -62,18 +63,21 @@ type QueryView struct {
 }
 
 type WebObject struct {
-	Model       any
-	Group       string
-	Name        string
-	Editables   []string
-	Filterables []string
-	Orderables  []string
-	Searchables []string
-	GetDB       GetDB
-	OnCreate    CreateFunc
-	OnUpdate    UpdateFunc
-	OnDelete    DeleteFunc
-	OnRender    RenderFunc
+	Model      any
+	Group      string
+	Name       string
+	GetDB      GetDB
+	Pagination bool // backend pagination
+
+	EditFields   []string
+	FilterFields []string
+	OrderFields  []string
+	SearchFields []string
+
+	OnCreate CreateFunc
+	OnUpdate UpdateFunc
+	OnDelete DeleteFunc
+	OnRender RenderFunc
 
 	Views        []QueryView
 	AllowMethods int
@@ -410,9 +414,9 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 		vals[fname] = v
 	}
 
-	if len(obj.Editables) > 0 {
+	if len(obj.EditFields) > 0 {
 		stripVals := make(map[string]any)
-		for _, k := range obj.Editables {
+		for _, k := range obj.EditFields {
 			if v, ok := vals[k]; ok {
 				stripVals[k] = v
 			}
@@ -506,7 +510,7 @@ func handleBatchDelete(c *gin.Context, obj *WebObject) {
 }
 
 func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery) {
-	db, form, err := prepareQuery(obj.GetDB(c, false), c)
+	db, form, err := prepareQuery(obj.GetDB(c, false), c, obj.Pagination)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -516,7 +520,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 
 	// Use struct{} makes map like set.
 	var filterFields = make(map[string]struct{})
-	for _, k := range obj.Filterables {
+	for _, k := range obj.FilterFields {
 		filterFields[k] = struct{}{}
 	}
 	if len(filterFields) > 0 {
@@ -540,7 +544,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 	}
 
 	var orderFields = make(map[string]struct{})
-	for _, k := range obj.Orderables {
+	for _, k := range obj.OrderFields {
 		orderFields[k] = struct{}{}
 	}
 	if len(orderFields) > 0 {
@@ -564,7 +568,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 
 	if form.Keyword != "" {
 		form.searchFields = []string{}
-		for _, v := range obj.Searchables {
+		for _, v := range obj.SearchFields {
 			form.searchFields = append(form.searchFields, namer.ColumnName(obj.tableName, v))
 		}
 	}
@@ -646,7 +650,15 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 	r.TotalCount = int(c)
 
 	items := reflect.New(reflect.SliceOf(obj.modelElem))
-	result := db.Offset(form.Pos).Limit(form.Limit).Find(items.Interface())
+
+	var offset int
+	if obj.Pagination {
+		offset = (form.Pos - 1) * form.Limit
+	} else {
+		offset = form.Pos
+	}
+
+	result := db.Offset(offset).Limit(form.Limit).Find(items.Interface())
 	if result.Error != nil {
 		return r, result.Error
 	}
@@ -656,7 +668,7 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 }
 
 // DefaultPrepareQuery return default QueryForm.
-func DefaultPrepareQuery(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error) {
+func DefaultPrepareQuery(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB, *QueryForm, error) {
 	var form QueryForm
 	if c.Request.ContentLength > 0 {
 		if err := c.BindJSON(&form); err != nil {
@@ -664,10 +676,17 @@ func DefaultPrepareQuery(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, err
 		}
 	}
 
-	if form.Pos < 0 {
-		form.Pos = 0
+	if pagination {
+		if form.Pos < 1 {
+			form.Pos = 1
+		}
+	} else {
+		if form.Pos < 0 {
+			form.Pos = 0
+		}
 	}
-	if form.Limit <= 0 || form.Limit > 150 {
+
+	if form.Limit <= 0 || form.Limit > MaxQueryLimit {
 		form.Limit = DefaultQueryLimit
 	}
 

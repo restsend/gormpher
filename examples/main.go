@@ -65,12 +65,12 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/user/:key
 		// DELETE http://localhost:8890/user
 		{
-			Name:        "user",
-			Model:       &User{},
-			Searchables: []string{"Name", "Enabled"},
-			Editables:   []string{"Name", "Age", "Enabled"},
-			Filterables: []string{"Name", "CreatedAt", "Age", "Enabled"},
-			Orderables:  []string{"CreatedAt", "Age", "Enabled"},
+			Name:         "user",
+			Model:        &User{},
+			SearchFields: []string{"Name", "Enabled"},
+			EditFields:   []string{"Name", "Age", "Enabled"},
+			FilterFields: []string{"Name", "CreatedAt", "Age", "Enabled"},
+			OrderFields:  []string{"CreatedAt", "Age", "Enabled"},
 			GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB {
 				return db
 			},
@@ -84,12 +84,12 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/product/:key
 		// DELETE http://localhost:8890/product
 		{
-			Name:        "product",
-			Model:       &Product{},
-			Searchables: []string{"Name"},
-			Editables:   []string{"Name", "Enabled"},
-			Filterables: []string{"Name", "CreatedAt", "Enabled"},
-			Orderables:  []string{"CreatedAt"},
+			Name:         "product",
+			Model:        &Product{},
+			SearchFields: []string{"Name"},
+			EditFields:   []string{"Name", "Enabled"},
+			FilterFields: []string{"Name", "CreatedAt", "Enabled"},
+			OrderFields:  []string{"CreatedAt"},
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 				return db
 			},

@@ -33,10 +33,10 @@ func TestObjectCRUD(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Model:       User{},
-		Editables:   []string{"Name"},
-		Filterables: []string{"Name"},
-		Searchables: []string{"Name"},
+		Model:        User{},
+		EditFields:   []string{"Name"},
+		FilterFields: []string{"Name"},
+		SearchFields: []string{"Name"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -143,9 +143,9 @@ func TestObjectQuery(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Model:       User{},
-		Filterables: []string{"Name", "Age", "Birthday", "Enabled"},
-		Searchables: []string{"Name"},
+		Model:        User{},
+		FilterFields: []string{"Name", "Age", "Birthday", "Enabled"},
+		SearchFields: []string{"Name"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -341,8 +341,8 @@ func TestObjectOrder(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Model:      User{},
-		Orderables: []string{"UUID", "Name", "Age", "CreatedAt"},
+		Model:       User{},
+		OrderFields: []string{"UUID", "Name", "Age", "CreatedAt"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -550,8 +550,8 @@ func TestObjectEdit(t *testing.T) {
 
 				r := gin.Default()
 				webobject := WebObject{
-					Model:     User{},
-					Editables: []string{"Name", "Age", "Enabled", "Birthday", "PtrTime"},
+					Model:      User{},
+					EditFields: []string{"Name", "Age", "Enabled", "Birthday", "PtrTime"},
 					GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 						return db
 					},
@@ -591,8 +591,8 @@ func TestObjectNoFieldEdit(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Model:     User{},
-		Editables: []string{},
+		Model:      User{},
+		EditFields: []string{},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -661,8 +661,8 @@ func TestObjectRegister(t *testing.T) {
 
 				r := gin.Default()
 				webobject := WebObject{
-					Model:       User{},
-					Filterables: tt.params.Filterable,
+					Model:        User{},
+					FilterFields: tt.params.Filterable,
 					GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 						return db
 					},
@@ -755,11 +755,11 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 	db.Create(&tuser{ID: 3, Name: "clash", Age: 11})
 
 	webobject := WebObject{
-		Name:        "user",
-		Model:       tuser{},
-		Editables:   []string{"Name"},
-		Filterables: []string{"Name, Age"},
-		Searchables: []string{"Name"},
+		Name:         "user",
+		Model:        tuser{},
+		EditFields:   []string{"Name"},
+		FilterFields: []string{"Name, Age"},
+		SearchFields: []string{"Name"},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
@@ -855,19 +855,17 @@ func TestQueryViews(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Name:        "user",
-		Model:       tuser{},
-		Editables:   []string{"Name"},
-		Filterables: []string{"Name, Age"},
-		Searchables: []string{"Name"},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
+		Name:         "user",
+		Model:        tuser{},
+		EditFields:   []string{"Name"},
+		FilterFields: []string{"Name, Age"},
+		SearchFields: []string{"Name"},
+		GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		Views: []QueryView{
 			{
 				Name:   "names",
 				Method: http.MethodGet,
-				Prepare: func(db *gorm.DB, ctx *gin.Context) (*gorm.DB, *QueryForm, error) {
+				Prepare: func(db *gorm.DB, ctx *gin.Context, pagination bool) (*gorm.DB, *QueryForm, error) {
 					return db, &QueryForm{Limit: -1, ViewFields: []string{"ID", "Name"}}, nil
 				},
 			},
@@ -891,4 +889,61 @@ func TestQueryViews(t *testing.T) {
 	assert.Equal(t, 200, len(result.Items))
 	assert.Equal(t, 0, result.Items[10].Age)
 	assert.NotZero(t, result.Items[10].ID)
+}
+
+func TestPagination(t *testing.T) {
+	// Pagination
+	{
+		r := gin.Default()
+		db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+		db.AutoMigrate(tuser{})
+
+		RegisterObject(r, &WebObject{
+			Name:       "user",
+			Model:      tuser{},
+			Pagination: true,
+			GetDB:      func(c *gin.Context, isCreate bool) *gorm.DB { return db },
+		})
+
+		{
+			db.Create(&tuser{Name: "user-1", Age: 1})
+			db.Create(&tuser{Name: "user-2", Age: 2})
+			db.Create(&tuser{Name: "user-3", Age: 3})
+		}
+
+		client := NewTestClient(r)
+
+		var result QueryResult[[]tuser]
+		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1}, &result)
+		assert.Equal(t, 3, result.TotalCount)
+		assert.Len(t, result.Items, 1)
+		assert.Equal(t, "user-2", result.Items[0].Name)
+	}
+	// No Pagination
+	{
+		r := gin.Default()
+		db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+		db.AutoMigrate(tuser{})
+
+		RegisterObject(r, &WebObject{
+			Name:  "user",
+			Model: tuser{},
+			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB { return db },
+		})
+
+		{
+			db.Create(&tuser{Name: "user-1", Age: 1})
+			db.Create(&tuser{Name: "user-2", Age: 2})
+			db.Create(&tuser{Name: "user-3", Age: 3})
+		}
+
+		client := NewTestClient(r)
+
+		var result QueryResult[[]tuser]
+		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1}, &result)
+		assert.Equal(t, 3, result.TotalCount)
+		assert.Len(t, result.Items, 1)
+		assert.Equal(t, "user-3", result.Items[0].Name)
+
+	}
 }
