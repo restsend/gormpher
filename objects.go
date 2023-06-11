@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mitchellh/mapstructure"
 	"gorm.io/gorm"
 )
 
@@ -48,7 +49,7 @@ type GetDB func(c *gin.Context, isCreate bool) *gorm.DB // designed for group
 type PrepareQuery func(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error)
 
 type (
-	CreateFunc func(ctx *gin.Context, vptr any) error
+	CreateFunc func(ctx *gin.Context, vptr any, vals map[string]any) error
 	DeleteFunc func(ctx *gin.Context, vptr any) error
 	UpdateFunc func(ctx *gin.Context, vptr any, vals map[string]any) error
 	RenderFunc func(ctx *gin.Context, vptr any) error
@@ -247,6 +248,7 @@ func (obj *WebObject) Build() error {
 	}
 	obj.modelElem = rt
 
+	// TODO: optimize
 	obj.tableName = obj.modelElem.Name()
 
 	if obj.Name == "" {
@@ -280,16 +282,11 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 
 		jsonTag := f.Tag.Get("json")
 		if jsonTag == "" {
-			obj.jsonToFields[f.Name] = f.Name
+			jsonTag = f.Name
+		}
 
-			kind := f.Type.Kind()
-			if kind == reflect.Ptr {
-				kind = f.Type.Elem().Kind()
-			}
-			obj.jsonToKinds[f.Name] = kind
-		} else if jsonTag != "-" {
+		if jsonTag != "-" {
 			obj.jsonToFields[jsonTag] = f.Name
-
 			kind := f.Type.Kind()
 			if kind == reflect.Ptr {
 				kind = f.Type.Elem().Kind()
@@ -308,7 +305,7 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 		}
 
 		obj.PrimaryKeyName = f.Name
-		if jsonTag == "" || jsonTag == "-" {
+		if jsonTag == "-" || jsonTag == "" {
 			obj.PrimaryKeyJsonName = f.Name
 		} else {
 			obj.PrimaryKeyJsonName = jsonTag
@@ -345,15 +342,21 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 }
 
 func handleCreateObject(c *gin.Context, obj *WebObject) {
+	var vals map[string]any
+	if err := c.BindJSON(&vals); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	val := reflect.New(obj.modelElem).Interface()
 
-	if err := c.BindJSON(&val); err != nil {
+	if err := mapstructure.Decode(vals, val); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	if obj.OnCreate != nil {
-		if err := obj.OnCreate(c, val); err != nil {
+		if err := obj.OnCreate(c, val, vals); err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -597,11 +600,12 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 	c.JSON(http.StatusOK, r)
 }
 
-// QueryObjects excute query and return data.
+// QueryObjects execute query and return data.
 func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[any], err error) {
 	// the real name of the db table
 	tblName := db.NamingStrategy.TableName(obj.tableName)
 
+	// TODO:
 	for _, v := range form.Filters {
 		if q := v.GetQuery(); q != "" {
 			db = db.Where(fmt.Sprintf("%s.%s", tblName, q), v.Value)

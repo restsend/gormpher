@@ -763,7 +763,7 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
-		OnCreate: func(ctx *gin.Context, vptr any) error {
+		OnCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 			user := (vptr).(*tuser)
 			if user.Name == "dangerous" {
 				return errors.New("alice is not allowed to create")

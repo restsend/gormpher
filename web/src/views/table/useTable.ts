@@ -1,17 +1,17 @@
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 
 import { alerter, confirm } from '@/components/popup'
 import type { Filter, FilterOp, Order, OrderOp } from '@/types'
 
 interface ListOptions {
-  initForm: {}
+  initForm: {} // Default form when adding
   validateForm?: () => boolean
   queryFn: (params: QueryParams) => Promise<QueryResult>
   editFn: (item: EditItem) => Promise<void>
   addFn: (form: any) => Promise<void> // | boolean
   deleteFn: (id: string | number) => Promise<void>
   batchFn: (form: string[]) => Promise<void>
-  queryParams: any // 额外的 query 参数
+  extraParams: any
 }
 
 interface EditItem {
@@ -43,7 +43,7 @@ export default function useTable({
   deleteFn,
   queryFn,
   batchFn,
-  queryParams = {},
+  extraParams = {},
 }: ListOptions) {
   // table
   const selectedIds = ref<number[] | string[]>([])
@@ -56,6 +56,7 @@ export default function useTable({
   const pos = ref(0)
   const limit = ref(10)
   const keyword = ref('')
+  const queryParams = reactive(extraParams)
 
   const filters = ref<Filter[]>([])
   const orders = ref<Order[]>([])
@@ -88,6 +89,12 @@ export default function useTable({
       })
       total.value = resp.total
       list.value = resp.items ?? []
+
+      // Empty data found and not on the first page
+      if (list.value.length === 0 && pos.value !== 0) {
+        pos.value -= limit.value
+        handleQuery()
+      }
     }
     catch (err: any) {
       alerter.error(err)
