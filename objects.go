@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mitchellh/mapstructure"
 	"gorm.io/gorm"
 )
 
@@ -310,15 +311,58 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 }
 
 func handleGetObject(c *gin.Context, obj *WebObject) {
-	HandleGet(c, obj.GetDB(c, false), obj.modelElem, obj.OnRender)
+	key := c.Param("key")
+	db := obj.GetDB(c, false)
+
+	val := reflect.New(obj.modelElem).Interface()
+	result := db.Where(obj.gormPKName, key).Take(&val)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+		} else {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		}
+		return
+	}
+
+	if obj.OnRender != nil {
+		if err := obj.OnRender(c, val); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, val)
 }
 
 func handleCreateObject(c *gin.Context, obj *WebObject) {
-	HandleCreate(c, obj.GetDB(c, true), obj.modelElem, obj.OnCreate)
-}
+	var vals map[string]any
+	if err := c.BindJSON(&vals); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-func handleDeleteObject(c *gin.Context, obj *WebObject) {
-	HandleDelete(c, obj.GetDB(c, false), obj.modelElem, obj.OnDelete)
+	val := reflect.New(obj.modelElem).Interface()
+
+	if err := mapstructure.Decode(vals, val); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if obj.OnCreate != nil {
+		if err := obj.OnCreate(c, val, vals); err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	result := obj.GetDB(c, true).Create(val)
+	if result.Error != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, val)
 }
 
 func handleEditObject(c *gin.Context, obj *WebObject) {
@@ -393,6 +437,40 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 	result := db.Model(model).Where(obj.gormPKName, key).Updates(vals)
 	if result.Error != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, true)
+}
+
+func handleDeleteObject(c *gin.Context, obj *WebObject) {
+	key := c.Param("key")
+	db := obj.GetDB(c, false)
+
+	val := reflect.New(obj.modelElem).Interface()
+
+	r := db.First(val, obj.gormPKName, key)
+
+	// for gorm delete hook, need to load model first.
+	if r.Error != nil {
+		if errors.Is(r.Error, gorm.ErrRecordNotFound) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+		} else {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": r.Error.Error()})
+		}
+		return
+	}
+
+	if obj.OnDelete != nil {
+		if err := obj.OnDelete(c, val); err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	r = db.Delete(val)
+	if r.Error != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": r.Error.Error()})
 		return
 	}
 
@@ -610,7 +688,7 @@ Check Go type corresponds to JSON type.
 */
 func checkType(goKind, jsonKind reflect.Kind) bool {
 	switch goKind {
-	case reflect.Struct, reflect.Slice: // time.Time, associated structures
+	case reflect.Ptr, reflect.Struct, reflect.Slice: // time.Time, associated structures
 		return true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,

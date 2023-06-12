@@ -12,7 +12,7 @@ import (
 
 type TestClient struct {
 	r         http.Handler
-	cookieJar http.CookieJar
+	CookieJar http.CookieJar
 	Scheme    string
 	Host      string
 }
@@ -21,7 +21,7 @@ func NewTestClient(r http.Handler) (c *TestClient) {
 	jar, _ := cookiejar.New(nil)
 	return &TestClient{
 		r:         r,
-		cookieJar: jar,
+		CookieJar: jar,
 		Scheme:    "http",
 		Host:      "1.2.3.4",
 	}
@@ -29,7 +29,7 @@ func NewTestClient(r http.Handler) (c *TestClient) {
 
 func (c *TestClient) SendReq(path string, req *http.Request) *httptest.ResponseRecorder {
 	req.URL.Scheme = "http"
-	req.URL.Host = "MOCKSERVER"
+	req.URL.Host = "MOCK_SERVER"
 	req.RemoteAddr = "127.0.0.1:1234"
 
 	currentUrl := &url.URL{
@@ -38,29 +38,31 @@ func (c *TestClient) SendReq(path string, req *http.Request) *httptest.ResponseR
 		Path:   path,
 	}
 
-	cookies := c.cookieJar.Cookies(currentUrl)
+	cookies := c.CookieJar.Cookies(currentUrl)
 	for _, cookie := range cookies {
 		req.AddCookie(cookie)
 	}
 
 	w := httptest.NewRecorder()
 	c.r.ServeHTTP(w, req)
-	c.cookieJar.SetCookies(currentUrl, w.Result().Cookies())
+	c.CookieJar.SetCookies(currentUrl, w.Result().Cookies())
 	return w
 }
 
-func (c *TestClient) GetRaw(path string) *httptest.ResponseRecorder {
-	req, _ := http.NewRequest("GET", path, nil)
+// Get return *httptest.ResponseRecorder
+func (c *TestClient) Get(path string) *httptest.ResponseRecorder {
+	req, _ := http.NewRequest(http.MethodGet, path, nil)
 	return c.SendReq(path, req)
 }
 
-func (c *TestClient) PostRaw(method, path string, body []byte) *httptest.ResponseRecorder {
-	req, _ := http.NewRequest(method, path, bytes.NewBuffer(body))
+// Post return *httptest.ResponseRecorder
+func (c *TestClient) Post(path string, body []byte) *httptest.ResponseRecorder {
+	req, _ := http.NewRequest(http.MethodPost, path, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	return c.SendReq(path, req)
 }
 
-func (c *TestClient) Call(method, path string, form, result any) error {
+func (c *TestClient) Call(method, path string, form any, result any) error {
 	body, err := json.Marshal(form)
 	if err != nil {
 		return err
@@ -83,12 +85,12 @@ func (c *TestClient) CallGet(path string, form, result any) error {
 	return c.Call(http.MethodGet, path, form, result)
 }
 
-func (c *TestClient) CallDelete(path string, form, result any) error {
-	return c.Call(http.MethodDelete, path, form, result)
+func (c *TestClient) CallPost(path string, form any, result any) error {
+	return c.Call(http.MethodPost, path, form, result)
 }
 
-func (c *TestClient) CallPost(path string, form, result any) error {
-	return c.Call(http.MethodPost, path, form, result)
+func (c *TestClient) CallDelete(path string, form, result any) error {
+	return c.Call(http.MethodDelete, path, form, result)
 }
 
 func (c *TestClient) CallPut(path string, form, result any) error {

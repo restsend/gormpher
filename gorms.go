@@ -10,6 +10,7 @@ import (
 )
 
 // gorm utils
+
 func getPkColumnName(rt reflect.Type) string {
 	var columnName string
 	for i := 0; i < rt.NumField(); i++ {
@@ -42,6 +43,99 @@ func getColumnName(rt reflect.Type, name string) string {
 		val = namingStrategy.ColumnName("", field.Name)
 	}
 	return val
+}
+
+func GetPkColumnName[T any]() string {
+	rt := reflect.TypeOf(new(T)).Elem()
+
+	var columnName string
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
+		isPrimaryKey := utils.CheckTruth(tagSetting["PRIMARYKEY"], tagSetting["PRIMARY_KEY"])
+		if isPrimaryKey {
+			name, ok := tagSetting["COLUMN"]
+			if !ok {
+				namingStrategy := schema.NamingStrategy{}
+				name = namingStrategy.ColumnName("", field.Name)
+			}
+			columnName = name
+			break
+		}
+	}
+	if columnName == "" {
+		return "id"
+	}
+	return columnName
+}
+
+func GetPkJsonName[T any]() string {
+	rt := reflect.TypeOf(new(T)).Elem()
+	return getPkJsonName(rt)
+}
+
+func GetColumnNameByField[T any](name string) string {
+	rt := reflect.TypeOf(new(T)).Elem()
+	val, ok := getColumnNameByField(rt, name)
+	if ok {
+		return val
+	}
+	return ""
+}
+
+func GetFieldNameByJsonTag[T any](jsonTag string) string {
+	rt := reflect.TypeOf(new(T)).Elem()
+	f, ok := getFieldByJsonTag(rt, jsonTag)
+	if ok {
+		return f.Name
+	}
+	return ""
+}
+
+func GetTableName[T any](db *gorm.DB) string {
+	name := reflect.TypeOf(new(T)).Elem().Name()
+	return db.NamingStrategy.TableName(name)
+}
+
+func getPkJsonName(rt reflect.Type) string {
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		gormTag := field.Tag.Get("gorm")
+		if gormTag != "primarykey" && gormTag != "primaryKey" {
+			continue
+		}
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == "" || jsonTag == "-" {
+			return field.Name
+		}
+		return jsonTag
+	}
+	return ""
+}
+
+func getColumnNameByField(rt reflect.Type, name string) (string, bool) {
+	field, ok := rt.FieldByName(name)
+	if !ok {
+		return "", false
+	}
+
+	tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
+	val, ok := tagSetting["COLUMN"]
+	if !ok {
+		namingStrategy := schema.NamingStrategy{}
+		val = namingStrategy.ColumnName("", field.Name)
+	}
+	return val, true
+}
+
+func getFieldByJsonTag(rt reflect.Type, jsonTag string) (reflect.StructField, bool) {
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		if field.Tag.Get("json") == jsonTag {
+			return field, true
+		}
+	}
+	return reflect.StructField{}, false
 }
 
 // gorm functions
@@ -351,30 +445,6 @@ func FilterScope(filters []Filter) func(db *gorm.DB) *gorm.DB {
 		}
 		return db
 	}
-}
-
-func GetPkColumnName[T any]() string {
-	rt := reflect.TypeOf(new(T)).Elem()
-
-	var columnName string
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
-		isPrimaryKey := utils.CheckTruth(tagSetting["PRIMARYKEY"], tagSetting["PRIMARY_KEY"])
-		if isPrimaryKey {
-			name, ok := tagSetting["COLUMN"]
-			if !ok {
-				namingStrategy := schema.NamingStrategy{}
-				name = namingStrategy.ColumnName("", field.Name)
-			}
-			columnName = name
-			break
-		}
-	}
-	if columnName == "" {
-		return "id"
-	}
-	return columnName
 }
 
 // {"name": "mockname", "age": 10 }
