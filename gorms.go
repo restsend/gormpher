@@ -9,6 +9,47 @@ import (
 	"gorm.io/gorm/utils"
 )
 
+// gorm utils
+func getPkColumnName(rt reflect.Type) string {
+	var columnName string
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
+		isPrimaryKey := utils.CheckTruth(tagSetting["PRIMARYKEY"], tagSetting["PRIMARY_KEY"])
+		if isPrimaryKey {
+			name, ok := tagSetting["COLUMN"]
+			if !ok {
+				namingStrategy := schema.NamingStrategy{}
+				name = namingStrategy.ColumnName("", field.Name)
+			}
+			columnName = name
+			break
+		}
+	}
+	return columnName
+}
+
+func getColumnName(rt reflect.Type, name string) string {
+	field, ok := rt.FieldByName(name)
+	if !ok {
+		return ""
+	}
+
+	tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
+	val, ok := tagSetting["COLUMN"]
+	if !ok {
+		namingStrategy := schema.NamingStrategy{}
+		val = namingStrategy.ColumnName("", field.Name)
+	}
+	return val
+}
+
+// gorm functions
+
+func UpdateFields[T any](db *gorm.DB, model *T, vals map[string]any) error {
+	return db.Model(model).Updates(vals).Error
+}
+
 func New[T any](db *gorm.DB, val *T) (*T, error) {
 	result := db.Create(val)
 	if result.Error != nil {
@@ -41,7 +82,7 @@ func DeleteByID[T any, E ~int | ~string](db *gorm.DB, id E, where ...any) error 
 	if len(where) > 0 {
 		db = db.Where(where[0], where[1:]...)
 	}
-	return db.Where(getPkColumnName[T](), id).Delete(new(T)).Error
+	return db.Where(GetPkColumnName[T](), id).Delete(new(T)).Error
 }
 
 func DeleteByMap[T any](db *gorm.DB, m map[string]any, where ...any) error {
@@ -85,7 +126,7 @@ func GetByID[T any, E ~int | ~string](db *gorm.DB, id E, where ...any) (*T, erro
 		db = db.Where(where[0], where[1:]...)
 	}
 
-	result := db.Take(&val, getPkColumnName[T](), id)
+	result := db.Take(&val, GetPkColumnName[T](), id)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -105,11 +146,11 @@ func UpdateByID[T any, E ~string | ~int](db *gorm.DB, id E, val *T, where ...any
 		db = db.Where(where[0], where[1:]...)
 	}
 
-	return db.Model(new(T)).Where(getPkColumnName[T](), id).Updates(val).Error
+	return db.Model(new(T)).Where(GetPkColumnName[T](), id).Updates(val).Error
 }
 
 func UpdateSelectByID[T any, E ~string | ~int](db *gorm.DB, id E, selects []string, val *T, where ...any) error {
-	pk := getPkColumnName[T]()
+	pk := GetPkColumnName[T]()
 
 	for _, s := range selects {
 		if s == pk {
@@ -121,14 +162,14 @@ func UpdateSelectByID[T any, E ~string | ~int](db *gorm.DB, id E, selects []stri
 		db = db.Where(where[0], where[1:]...)
 	}
 
-	return db.Model(new(T)).Where(getPkColumnName[T](), id).Select(selects).Updates(val).Error
+	return db.Model(new(T)).Where(GetPkColumnName[T](), id).Select(selects).Updates(val).Error
 }
 
 func UpdateMapByID[T any, E ~string | ~int](db *gorm.DB, id E, m map[string]any, where ...any) error {
 	if len(where) > 0 {
 		db = db.Where(where[0], where[1:]...)
 	}
-	return db.Model(new(T)).Where(getPkColumnName[T](), id).Updates(m).Error
+	return db.Model(new(T)).Where(GetPkColumnName[T](), id).Updates(m).Error
 }
 
 // Query List
@@ -312,7 +353,7 @@ func FilterScope(filters []Filter) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
-func getPkColumnName[T any]() string {
+func GetPkColumnName[T any]() string {
 	rt := reflect.TypeOf(new(T)).Elem()
 
 	var columnName string

@@ -947,3 +947,42 @@ func TestPagination(t *testing.T) {
 
 	}
 }
+
+func TestColumnName(t *testing.T) {
+	type User struct {
+		ID   int64  `gorm:"primarykey"`
+		Name string `gorm:"column:username"`
+	}
+
+	r := gin.Default()
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(User{})
+
+	RegisterObject(r, &WebObject{
+		Name:         "user",
+		Model:        User{},
+		GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
+		FilterFields: []string{"Name"},
+	})
+
+	{
+		db.Create(&User{Name: "user-1"})
+		db.Create(&User{Name: "user-2"})
+		db.Create(&User{Name: "user-3"})
+
+		var count int64
+		db.Model(&User{}).Count(&count)
+		assert.Equal(t, int64(3), count)
+	}
+
+	client := NewTestClient(r)
+
+	var result QueryResult[[]User]
+	client.CallPost("/user", &QueryForm{
+		Filters: []Filter{
+			{Name: "Name", Op: "=", Value: "user-2"},
+		}}, &result)
+	assert.Equal(t, 1, result.TotalCount)
+	assert.Len(t, result.Items, 1)
+	assert.Equal(t, "user-2", result.Items[0].Name)
+}

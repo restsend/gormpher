@@ -112,7 +112,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 				{
 					Name:   "all_enabled",
 					Method: "GET",
-					Prepare: func(db *gorm.DB, c *gin.Context) (*gorm.DB, *gormpher.QueryForm, error) {
+					Prepare: func(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB, *gormpher.QueryForm, error) {
 						// SELECT (id, name) FROM products WHERE enabled = true
 						queryForm := &gormpher.QueryForm{
 							Limit: -1,

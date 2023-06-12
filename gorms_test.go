@@ -1,6 +1,7 @@
 package gormpher
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -690,24 +691,49 @@ func TestGetPkColumnName(t *testing.T) {
 		type User struct {
 			ID int64
 		}
-		assert.Equal(t, "id", getPkColumnName[User]())
+		assert.Equal(t, "id", GetPkColumnName[User]())
 	}
 	{
 		type User struct {
 			ID int64 `gorm:"primary_key"`
 		}
-		assert.Equal(t, "id", getPkColumnName[User]())
+		assert.Equal(t, "id", GetPkColumnName[User]())
 	}
 	{
 		type User struct {
 			UUID int64 `gorm:"primary_key"`
 		}
-		assert.Equal(t, "uuid", getPkColumnName[User]())
+		assert.Equal(t, "uuid", GetPkColumnName[User]())
 	}
 	{
 		type User struct {
 			UUID int64 `gorm:"primaryKey"`
 		}
-		assert.Equal(t, "uuid", getPkColumnName[User]())
+		assert.Equal(t, "uuid", GetPkColumnName[User]())
 	}
+	{
+		type User struct {
+			UUID int64
+		}
+		assert.Equal(t, "", getPkColumnName(reflect.TypeOf(User{})))
+	}
+}
+
+func TestGetColumnName(t *testing.T) {
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{})
+	db.AutoMigrate(user{}, product{})
+
+	type test struct {
+		UUID      uint `gorm:"primarykey"`
+		Name      string
+		CreatedAt time.Time
+		AName     string `gorm:"column:a_n"`
+		BName     string
+	}
+
+	rt := reflect.TypeOf(test{})
+	assert.Equal(t, "uuid", getColumnName(rt, "UUID"))
+	assert.Equal(t, "created_at", getColumnName(rt, "CreatedAt"))
+	assert.Equal(t, "a_n", getColumnName(rt, "AName"))
+	assert.Equal(t, "b_name", getColumnName(rt, "BName"))
 }
