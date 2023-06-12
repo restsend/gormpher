@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/mapstructure"
@@ -104,7 +105,24 @@ func HandleCreate[T any](c *gin.Context, db *gorm.DB, onCreate onCreateFunc[T]) 
 
 	val := new(T)
 
-	if err := mapstructure.Decode(vals, val); err != nil {
+	// fix mapstructure decode time.Time
+	config := mapstructure.DecoderConfig{
+		DecodeHook: func(f reflect.Type, t reflect.Type, data any) (any, error) {
+			if f.Kind() != reflect.String || t != reflect.TypeOf(time.Time{}) {
+				return data, nil
+			}
+			layouts := []string{time.RFC3339, "2006-01-02T15:04"}
+			for _, layout := range layouts {
+				if val, err := time.Parse(layout, data.(string)); err == nil {
+					return val, nil
+				}
+			}
+			return data, nil
+		},
+		Result: &val,
+	}
+	decoder, _ := mapstructure.NewDecoder(&config)
+	if err := decoder.Decode(vals); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

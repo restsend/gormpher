@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1074,4 +1075,24 @@ func TestCreateTime(t *testing.T) {
 		assert.Equal(t, int64(2), val.ID)
 		assert.Equal(t, "2021-01-01 00:00:00 +0000 UTC", val.Birthday.String())
 	}
+
+	{
+		// input type="datetime-local" 2006-01-02T15:04
+		json := `{"id":3,"birthday":"2023-06-13T01:17"}`
+		req := httptest.NewRequest(http.MethodPut, "/user", strings.NewReader(json))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		count, _ := Count[tmpUser](db)
+		assert.Equal(t, 3, count)
+
+		val, _ := GetByID[tmpUser](db, 3)
+		assert.Equal(t, int64(3), val.ID)
+		assert.Equal(t, "2023-06-13 01:17:00 +0000 UTC", val.Birthday.String())
+	}
+}
+
+func TestXxx(t *testing.T) {
+	fmt.Println(reflect.TypeOf(time.Time{}).Kind())
 }

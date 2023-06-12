@@ -67,7 +67,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			Name:         "user",
 			Model:        &User{},
 			SearchFields: []string{"Name", "Enabled"},
-			EditFields:   []string{"Name", "Age", "Enabled"},
+			EditFields:   []string{"Name", "Age", "Enabled", "LastLogin"},
 			FilterFields: []string{"Name", "CreatedAt", "Age", "Enabled"},
 			OrderFields:  []string{"CreatedAt", "Age", "Enabled"},
 			GetDB:        func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },

@@ -350,8 +350,19 @@ func handleCreateObject(c *gin.Context, obj *WebObject) {
 
 	// fix mapstructure decode time.Time
 	config := mapstructure.DecoderConfig{
-		DecodeHook: mapstructure.StringToTimeHookFunc(time.RFC3339),
-		Result:     &val,
+		DecodeHook: func(f reflect.Type, t reflect.Type, data any) (any, error) {
+			if f.Kind() != reflect.String || t != reflect.TypeOf(time.Time{}) {
+				return data, nil
+			}
+			layouts := []string{time.RFC3339, "2006-01-02T15:04"}
+			for _, layout := range layouts {
+				if val, err := time.Parse(layout, data.(string)); err == nil {
+					return val, nil
+				}
+			}
+			return data, nil
+		},
+		Result: &val,
 	}
 	decoder, _ := mapstructure.NewDecoder(&config)
 	if err := decoder.Decode(vals); err != nil {

@@ -29,7 +29,7 @@ type AdminObject struct {
 
 	// Map fields to jsonTag. such as:
 	// UUID string `json:"id"` => {"UUID": "id"}
-	fieldsToJsons map[string]string
+	fieldToJSONs map[string]string
 
 	PrimaryKeyField    string
 	PrimaryKeyJsonName string
@@ -83,7 +83,7 @@ func woToAo(wo WebObject) AdminObject {
 			fieldsToJsons[f.Name] = jsonField
 		}
 	}
-	ao.fieldsToJsons = fieldsToJsons
+	ao.fieldToJSONs = fieldsToJsons
 
 	ao.Filters = make([]string, 0)
 	for _, f := range wo.FilterFields {
@@ -176,7 +176,7 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 					continue
 				}
 
-				jsonName := obj.fieldsToJsons[f.Name]
+				jsonName := obj.fieldToJSONs[f.Name]
 				typeVal := convertGoTypeToJS(f.Type.Kind())
 
 				fields = append(fields, jsonName)
