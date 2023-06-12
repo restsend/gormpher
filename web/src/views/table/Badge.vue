@@ -16,17 +16,12 @@ defineProps<Props>()
   </template>
   <template v-if="actions?.includes('search')">
     <div class="tooltip tooltip-bottom tooltip-error" data-tip="Searchable">
-      <span class="badge badge-error badge-sm cursor-default"> S </span>
+      <span class="badge badge-sm badge-error cursor-default"> S </span>
     </div>
   </template>
-  <!-- <template v-if="actions?.includes('order')">
-    <div class="tooltip tooltip-warning" data-tip="Orderable">
-      <span class="badge badge-warning badge-sm cursor-default"> O </span>
-    </div>
-  </template> -->
   <template v-if="actions?.includes('edit')">
     <div class="tooltip tooltip-bottom tooltip-success" data-tip="Editable">
-      <span class="badge badge-success badge-sm cursor-default"> E </span>
+      <span class="badge badge-sm badge-success cursor-default"> E </span>
     </div>
   </template>
 </template>

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/mapstructure"
@@ -283,6 +284,9 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 		}
 
 		jsonTag := f.Tag.Get("json")
+		if strings.Contains(jsonTag, ",") {
+			jsonTag = strings.Split(jsonTag, ",")[0]
+		}
 		if jsonTag == "" {
 			jsonTag = f.Name
 		}
@@ -344,7 +348,13 @@ func handleCreateObject(c *gin.Context, obj *WebObject) {
 
 	val := reflect.New(obj.modelElem).Interface()
 
-	if err := mapstructure.Decode(vals, val); err != nil {
+	// fix mapstructure decode time.Time
+	config := mapstructure.DecoderConfig{
+		DecodeHook: mapstructure.StringToTimeHookFunc(time.RFC3339),
+		Result:     &val,
+	}
+	decoder, _ := mapstructure.NewDecoder(&config)
+	if err := decoder.Decode(vals); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

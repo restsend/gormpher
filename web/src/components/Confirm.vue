@@ -10,7 +10,12 @@ const props = defineProps({
   onClose: { type: Function, default: () => {} },
 })
 
-const show = ref(props.open)
+const show = ref(false)
+
+setTimeout(() => {
+  show.value = props.open
+}, 10)
+
 function closeModal(flag: boolean) {
   show.value = false
   flag ? props.onPositiveClick() : props.onNegativeClick()
@@ -23,7 +28,7 @@ function closeModal(flag: boolean) {
     <input v-model="show" type="checkbox" class="modal-toggle">
     <div class="modal" @click.self="show = false">
       <div class="modal-box relative max-w-lg rounded-md" @click="() => {}">
-        <h3 class="font-bold text-lg">
+        <h3 class="text-lg font-bold">
           {{ title }}
         </h3>
         <p class="py-4">

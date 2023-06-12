@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -615,6 +616,42 @@ func TestObjectNoFieldEdit(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 }
 
+func TestUpdatePtrTime(t *testing.T) {
+	type User struct {
+		ID       uint      `json:"uid" gorm:"primarykey"`
+		Birthday time.Time `json:"birthday"`
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(User{})
+
+	r := gin.Default()
+	webobject := WebObject{
+		Model:      User{},
+		EditFields: []string{"Birthday"},
+		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
+			return db
+		},
+	}
+	err := webobject.RegisterObject(r)
+	assert.Nil(t, err)
+
+	db.Create(&User{ID: 1})
+
+	var data = map[string]any{
+		"birthday": "2022-02-02 11:11:11",
+	}
+	b, _ := json.Marshal(data)
+	req := httptest.NewRequest("PATCH", fmt.Sprintf("/user/%d", 1), bytes.NewReader(b))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+	var user User
+	db.First(&user, 1)
+	assert.Equal(t, "2022-02-02 11:11:11 +0000 UTC", user.Birthday.String())
+}
+
 func TestObjectRegister(t *testing.T) {
 	type User struct {
 		UUID     string    `json:"uid" gorm:"primarykey"`
@@ -985,4 +1022,56 @@ func TestColumnName(t *testing.T) {
 	assert.Equal(t, 1, result.TotalCount)
 	assert.Len(t, result.Items, 1)
 	assert.Equal(t, "user-2", result.Items[0].Name)
+}
+
+func TestCreateTime(t *testing.T) {
+	type tmpUser struct {
+		ID       int64 `gorm:"primarykey"`
+		Birthday time.Time
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(tmpUser{})
+	r := gin.Default()
+
+	err := RegisterObject(&r.RouterGroup, &WebObject{
+		Name:       "user",
+		Model:      tmpUser{},
+		GetDB:      func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
+		EditFields: []string{"Birthday"},
+	})
+	assert.Nil(t, err)
+
+	{
+		now := time.Now()
+		b, _ := json.Marshal(tmpUser{ID: 1, Birthday: now})
+		req := httptest.NewRequest(http.MethodPut, "/user", bytes.NewReader(b))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		count, _ := Count[tmpUser](db)
+		assert.Equal(t, 1, count)
+
+		val, _ := GetByID[tmpUser](db, 1)
+		assert.Equal(t, int64(1), val.ID)
+		assert.Equal(t, now.Format(time.RFC3339), val.Birthday.Format(time.RFC3339))
+	}
+
+	{
+		// RFC3339: 2006-01-02T15:04:05Z07:00
+		// ISO8601: 2021-01-01T00:00:00Z
+		json := `{"id":2,"birthday":"2021-01-01T00:00:00Z"}`
+		req := httptest.NewRequest(http.MethodPut, "/user", strings.NewReader(json))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		count, _ := Count[tmpUser](db)
+		assert.Equal(t, 2, count)
+
+		val, _ := GetByID[tmpUser](db, 2)
+		assert.Equal(t, int64(2), val.ID)
+		assert.Equal(t, "2021-01-01 00:00:00 +0000 UTC", val.Birthday.String())
+	}
 }

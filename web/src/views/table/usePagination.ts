@@ -14,7 +14,7 @@ export default function usePagination({
   total = ref(0),
   callback = () => {},
 }: PaginationOptions) {
-  const currentPage = computed(() => 1 + pos.value / limit.value + (pos.value % limit.value))
+  const currentPage = computed(() => 1 + pos.value / limit.value)
 
   function handleNext() {
     if (pos.value + limit.value >= total.value)

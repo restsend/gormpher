@@ -12,15 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type Product struct {
-	UUID      string    `json:"id" gorm:"primarykey"`
-	GroupID   int       `json:"-"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Enabled   bool      `json:"enabled"`
-}
-
 type User struct {
 	ID        uint       `json:"id" gorm:"primarykey"`
 	CreatedAt time.Time  `json:"createdAt"`
@@ -28,7 +19,16 @@ type User struct {
 	Name      string     `json:"name"`
 	Age       int        `json:"age"`
 	Enabled   bool       `json:"enabled"`
-	LastLogin *time.Time `json:"lastLogin,omitempty"`
+	LastLogin *time.Time `json:"lastLogin"`
+}
+
+type Product struct {
+	UUID      string    `json:"id" gorm:"primarykey"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	GroupID   int       `json:"-"`
+	Name      string    `json:"name"`
+	Enabled   bool      `json:"enabled"`
 }
 
 func main() {
@@ -45,7 +45,6 @@ func main() {
 	r := gin.Default()
 
 	objs := GetWebObjects(db)
-
 	// visit API: http://localhost:8890/api
 	gormpher.RegisterObjects(r, objs)
 	// visit Admin: http://localhost:8890/admin
@@ -71,9 +70,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			EditFields:   []string{"Name", "Age", "Enabled"},
 			FilterFields: []string{"Name", "CreatedAt", "Age", "Enabled"},
 			OrderFields:  []string{"CreatedAt", "Age", "Enabled"},
-			GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB {
-				return db
-			},
+			GetDB:        func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 		},
 		// Advanced Demo
 		// Check API File: product.http
@@ -87,12 +84,10 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			Name:         "product",
 			Model:        &Product{},
 			SearchFields: []string{"Name"},
-			EditFields:   []string{"Name", "Enabled"},
+			EditFields:   []string{"Name", "Enabled", "Model"},
 			FilterFields: []string{"Name", "CreatedAt", "Enabled"},
 			OrderFields:  []string{"CreatedAt"},
-			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-				return db
-			},
+			GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 			OnCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 				p := (vptr).(*Product)
 				p.UUID = MockUUID(8)

@@ -1,13 +1,14 @@
 export async function handleResult(resp: Response) {
   if (resp.status !== 200) {
     let reason = await resp.text()
-    // TODO:
     if (/json/i.test(resp.headers.get('Content-Type') || '')) {
       const data = JSON.parse(reason)
       reason = data.error || reason
     }
     if (!reason)
       reason = resp.statusText
+    console.error(reason)
+    return Promise.reject(reason)
   }
   return await resp.json()
 }

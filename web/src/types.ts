@@ -10,6 +10,7 @@ export interface TableState {
   orders: string[]
   searchs: string[]
   edits: string[]
+  primaryKey: string // primary key json field
 }
 
 export type FilterOp = '=' | '<>' | 'in' | 'not_in' | '>' | '>=' | '<' | '<='

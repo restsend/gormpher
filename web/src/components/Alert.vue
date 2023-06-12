@@ -41,7 +41,7 @@ function renderTypeIcon() {
 
 <template>
   <Transition>
-    <div v-if="show" class="fixed z-100 top-0 right-0 p-5 w-120">
+    <div v-if="show" class="fixed right-0 top-0 z-100 w-120 p-5">
       <div class="alert shadow-lg" :class="`alert-${type}`">
         <div>
           <component :is="renderTypeIcon" />

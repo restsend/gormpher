@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { marked } from 'marked'
-import helpmd from './help.md?raw'
+import help from './help.md?raw'
 
-const markdown = marked.parse(helpmd)
+const markdown = marked.parse(help)
 </script>
 
 <template>

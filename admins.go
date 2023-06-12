@@ -30,14 +30,17 @@ type AdminObject struct {
 	// Map fields to jsonTag. such as:
 	// UUID string `json:"id"` => {"UUID": "id"}
 	fieldsToJsons map[string]string
+
+	PrimaryKeyField    string
+	PrimaryKeyJsonName string
 }
 
 type AdminManager struct {
-	AdminBojects []AdminObject
+	AdminObjects []AdminObject
 	Names        []string
 }
 
-// RegisterObjectsWithAdmin quickly Regiter Admin by webobjects
+// RegisterObjectsWithAdmin quickly Register Admin by webobjects
 func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) {
 	m := AdminManager{}
 	for _, obj := range objs {
@@ -52,7 +55,7 @@ func (m *AdminManager) RegisterObject(r *gin.RouterGroup, obj WebObject) {
 	}
 
 	m.Names = append(m.Names, obj.Name)
-	m.AdminBojects = append(m.AdminBojects, woToAo(obj))
+	m.AdminObjects = append(m.AdminObjects, woToAo(obj))
 }
 
 // convert WebObject to AdminObject
@@ -105,7 +108,7 @@ func woToAo(wo WebObject) AdminObject {
 	return ao
 }
 
-// RegiterAdmin resolve adminManager & register admin handler
+// RegisterAdmin resolve adminManager & register admin handler
 func RegisterAdminHandler(r *gin.RouterGroup, m *AdminManager) {
 	r.GET("object_names", m.handleObjectNames)
 	r.GET("object/:name", m.handleObjectFields)
@@ -144,7 +147,9 @@ func (m *AdminManager) handleObjectNames(c *gin.Context) {
 	"searchs": ["name"],
 	"filters": ["name", "age"],
 	"orders": ["createdAt"],
-	"edits": ["name"]
+	"edits": ["name"],
+
+	"primaryKey": "id",
 }
 */
 func (m *AdminManager) handleObjectFields(c *gin.Context) {
@@ -160,7 +165,7 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 	jsTypes := make([]string, 0)
 	goTypes := make([]string, 0)
 
-	for _, obj := range m.AdminBojects {
+	for _, obj := range m.AdminObjects {
 		if obj.webObject.Name == name {
 			rt := obj.webObject.modelElem
 			for i := 0; i < rt.NumField(); i++ {
@@ -183,6 +188,7 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 			res["filters"] = obj.Filters
 			res["orders"] = obj.Orders
 			res["edits"] = obj.Edits
+			res["primaryKey"] = obj.webObject.jsonPKName
 			break
 		}
 	}

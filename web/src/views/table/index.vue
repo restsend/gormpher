@@ -2,8 +2,8 @@
 import { computed, onMounted, reactive, watch } from 'vue'
 
 import Badge from './Badge.vue'
-import DynaticInput from './DynaticInput.vue'
-import DynaticItem from './DynaticItem.vue'
+import DynamicInput from './DynamicInput.vue'
+import DynamicItem from './DynamicItem.vue'
 import FilterItem from './FilterItem.vue'
 import type { ActionType, TableState } from '@/types'
 
@@ -28,6 +28,7 @@ const state = reactive<TableState>({
   edits: [],
   orders: [],
   searchs: [],
+  primaryKey: '',
 })
 
 watch(() => props.name, (name) => {
@@ -47,19 +48,16 @@ const {
   loading,
   selectedIds,
   modalVisible,
-  // modalLoading,
   handleQuery,
   handleSearch,
   handleOrder,
-  // handleRemoveOrder,
-  // handleFilter,
   handleRemoveFilter,
   handleShowAdd,
   handleAdd,
   handleShowEdit,
   handleEdit,
   handleDelete,
-  handleBatch,
+  handleBatchDelete,
   handleReset,
 } = useTable({
   initForm: {},
@@ -68,13 +66,13 @@ const {
   deleteFn: id => api.handleDelete(state.name, id),
   queryFn: params => api.handleQuery(state.name, params),
   batchFn: ids => api.handleBatch(state.name, ids),
-  queryParams: {},
+  extraParams: {},
   validateForm: () => true, // no form validate
 })
 
 function handleToggleBool(item: any, field: string) {
   try {
-    handleEdit({ ...item, [field]: !item[field] })
+    handleEdit({ id: item.id, [field]: !item[field] })
   }
   catch (err: any) {
     alerter.error(err)
@@ -126,7 +124,7 @@ async function initialize() {
   loading.value = true
 
   try {
-    const { fields, types, goTypes, filters, orders, searchs, edits }
+    const { fields, types, goTypes, filters, orders, searchs, edits, primaryKey }
     = await api.getObject(state.name)
 
     state.fields = fields
@@ -143,6 +141,7 @@ async function initialize() {
     state.orders = orders
     state.searchs = searchs
     state.edits = edits
+    state.primaryKey = primaryKey
 
     handleReset()
   }
@@ -158,51 +157,57 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="wh-full space-y-4 p-4 pb-0 rounded-md">
+  <div class="wh-full rounded-md p-4 pb-0 space-y-4">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center space-x-4">
-        <div class="flex relative">
+        <div class="relative flex">
           <input
             v-model="keyword"
             :disabled="!state.searchs.length"
             type="text"
             placeholder="Keyword search"
-            class="input input-bordered input-sm w-full max-w-xs"
+            class="input input-bordered input-sm max-w-xs w-full"
             @keyup.enter="handleSearch"
           >
           <button
-            class="i-uiw:search absolute right-2 btn btn-sm btn-square"
+            class="btn btn-sm btn-square i-uiw:search absolute right-2"
             :disabled="!state.searchs.length"
             @click="handleSearch"
           />
         </div>
-        <div class="dropdown dropdow-bottom">
+        <div class="dropdown dropdown-bottom">
           <label tabindex="0">
             <button class="btn btn-sm btn-circle btn-ghost m-1" :disabled="!state.filters.length">
               <div class="i-uiw:filter p-1" />
             </button>
           </label>
-          <ul tabindex="0" class="dropdown-content p-2 shadow bg-base-100 rounded-box w-120 space-y-2">
-            <li v-for="filter of filters" :key="filter.name">
+          <ul tabindex="0" class="dropdown-content min-w-120 bg-base-100 p-2 shadow rounded-box space-y-2">
+            <li v-for="filter of filters" :key="`${filter}`">
               <FilterItem
                 :filter="filter"
                 :filters="state.filters"
                 :type="state.mapping[filter.name]"
+                :go-type="state.goMapping[filter.name]"
+                :primary-key="state.primaryKey"
                 @handle-query="handleQuery"
                 @remove-filter="handleRemoveFilter"
               />
             </li>
-            <li class="f-c-c cursor-pointer">
-              <a>
-                <button
-                  class="btn btn-sm btn-circle btn-ghost"
-                  :disabled="filters.length >= state.filters.length"
-                  @click="filters.push({ name: state.filters[filters.length], op: '=', value: '' })"
-                >
-                  <div class="i-uiw:plus" />
-                </button>
-              </a>
+            <li class="flex cursor-pointer items-center justify-between">
+              <button
+                class="btn btn-sm btn-circle btn-ghost"
+                :disabled="filters.length >= state.filters.length"
+                @click="filters.push({ name: state.filters[filters.length], op: '=', value: '' })"
+              >
+                <div class="i-uiw:plus" />
+              </button>
+              <button
+                class="btn btn-sm btn-circle btn-ghost"
+                @click="handleQuery"
+              >
+                <div class="i-mdi:magnify" />
+              </button>
             </li>
           </ul>
         </div>
@@ -215,10 +220,13 @@ onMounted(async () => {
               <div class="i-uiw:bar-chart p-1" />
             </button>
           </label>
-          <ul tabindex="0" class="dropdown-content menu shadow bg-base-100 rounded-box w-64 text-sm">
+          <ul tabindex="0" class="dropdown-content menu w-64 bg-base-100 text-sm shadow rounded-box">
             <div class="card bg-base-100 shadow-xl">
               <div class="card-body">
+                orders:
                 <pre><code>{{ JSON.stringify(orders, null, '\t') }}</code></pre>
+                filters:
+                <pre><code>{{ JSON.stringify(filters, null, '\t') }}</code></pre>
               </div>
             </div>
           </ul>
@@ -235,22 +243,22 @@ onMounted(async () => {
         ADD
       </button>
     </div>
-
-    <div class="relative w-full overflow-x-auto min-h-md">
+    <!-- Table -->
+    <div class="relative min-h-md w-full overflow-x-auto">
       <!-- Bulk action -->
       <div
         v-if="selectedIds.length > 0"
-        class="absolute top-0 left-16 z-10 flex h-16 items-center space-x-3 sm:left-12"
+        class="absolute left-16 top-0 z-10 h-16 flex items-center sm:left-12 space-x-3"
       >
         <button
           type="button"
           class="btn btn-sm ml-5"
-          @click="handleBatch(selectedIds)"
+          @click="handleBatchDelete(selectedIds)"
         >
           Delete all
         </button>
       </div>
-      <table class="table table-normal wh-full text-sm">
+      <table class="table-normal wh-full table text-sm">
         <thead>
           <tr>
             <template v-if="loading">
@@ -271,7 +279,7 @@ onMounted(async () => {
                 >
               </th>
               <th v-for="field of state.fields" :key="field">
-                <div class="flex items-center space-x-1 cursor-default">
+                <div class="flex cursor-default items-center space-x-1">
                   <div v-if="canOrder(field)" class="flex flex-col">
                     <div
                       class="i-typcn:arrow-sorted-up transition-500 hover:scale-130"
@@ -294,7 +302,7 @@ onMounted(async () => {
           <template v-if="loading">
             <tr>
               <td :colspan="99">
-                <div class="w-full f-c-c h-96 text-sm opacity-90">
+                <div class="h-96 w-full f-c-c text-sm opacity-90">
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><rect width="6" height="14" x="1" y="4" fill="#888888"><animate id="svgSpinnersBarsScaleFade0" fill="freeze" attributeName="y" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="9" y="4" fill="currentColor" opacity=".4"><animate fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="17" y="4" fill="currentColor" opacity=".3"><animate id="svgSpinnersBarsScaleFade1" fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;.2" /></rect></svg>
                 </div>
               </td>
@@ -303,9 +311,9 @@ onMounted(async () => {
           <template v-else-if="!list.length">
             <tr>
               <td :colspan="99">
-                <div class="f-c-c min-h-96 bg-base-100">
+                <div class="min-h-96 f-c-c bg-base-100">
                   <!-- <div class="i-simple-icons:protodotio text-5xl" /> -->
-                  <span class="font-mono text-base-300 text-5xl select-none">
+                  <span class="select-none font-mono text-5xl text-base-300">
                     Empty
                   </span>
                 </div>
@@ -313,7 +321,7 @@ onMounted(async () => {
             </tr>
           </template>
           <template v-else>
-            <tr v-for="item of list" :key="item.id" class="hover group">
+            <tr v-for="item of list" :key="item.id" class="group hover">
               <th>
                 <input
                   v-model="selectedIds"
@@ -323,28 +331,31 @@ onMounted(async () => {
                 >
               </th>
               <td v-for="field of state.fields" :key="field">
-                <DynaticItem
-                  :field="field"
-                  :value="item[field]"
-                  :type="state.mapping[field]"
-                  :toggle-bool="canEdit(field) ? () => handleToggleBool(item, field) : () => {}"
-                />
+                <div class="">
+                  <DynamicItem
+                    :field="field"
+                    :value="item[field]"
+                    :type="state.mapping[field]"
+                    :primary-key="state.primaryKey"
+                    :go-type="state.goMapping[field]"
+                    :toggle-bool="canEdit(field) ? () => handleToggleBool(item, field) : () => {}"
+                    :open-modal="() => handleShowEdit(item)"
+                  />
+                </div>
               </td>
               <td class="py-0.5">
-                <div class="invisible group-hover:visible">
-                  <div class="flex items-center space-x-4">
-                    <div
-                      class="btn btn-circle btn-ghost btn-sm"
-                      @click="handleShowEdit(item)"
-                    >
-                      <span class="i-uiw:edit text-green-400 hover:text-green-400" />
-                    </div>
-                    <div
-                      class="btn btn-circle btn-ghost btn-sm"
-                      @click="handleDelete(item.id)"
-                    >
-                      <span class="i-uiw:delete text-red-500 hover:text-red-500" />
-                    </div>
+                <div class="flex items-center space-x-4">
+                  <div
+                    class="btn btn-circle btn-ghost btn-sm"
+                    @click="handleShowEdit(item)"
+                  >
+                    <span class="i-uiw:edit text-green-400 hover:text-green-400" />
+                  </div>
+                  <div
+                    class="btn btn-circle btn-ghost btn-sm"
+                    @click="handleDelete(item.id)"
+                  >
+                    <span class="i-uiw:delete text-red-500 hover:text-red-500" />
                   </div>
                 </div>
               </td>
@@ -353,9 +364,8 @@ onMounted(async () => {
         </tbody>
       </table>
     </div>
-
     <!-- Pagination -->
-    <div class="flex items-center justify-between mt-5">
+    <div class="mt-5 flex items-center justify-between">
       <div class="space-x-3">
         <span>
           Total: {{ total }}
@@ -394,11 +404,7 @@ onMounted(async () => {
 
   <!-- Edit Modal -->
   <div>
-    <input
-      v-model="modalVisible"
-      type="checkbox"
-      class="modal-toggle"
-    >
+    <input v-model="modalVisible" type="checkbox" class="modal-toggle">
     <div class="modal" @click.self="modalVisible = false">
       <div class="modal-box relative max-w-lg" @click="() => {}">
         <h3 class="text-lg font-bold">
@@ -406,7 +412,7 @@ onMounted(async () => {
         </h3>
         <div class="py-4">
           <template v-for="field of state.fields" :key="field">
-            <div class="flex justify-between my-1.5">
+            <div class="my-4 flex justify-between">
               <div class="space-x-1">
                 {{ field }}
                 <span class="badge badge-outline cursor-default">
@@ -415,11 +421,13 @@ onMounted(async () => {
                 <Badge v-if="canEdit(field)" :actions="['edit']" />
               </div>
               <div>
-                <DynaticInput
+                <DynamicInput
                   v-model:value="form[field]"
                   :operation="form.id ? 'edit' : 'add'"
                   :field="field"
+                  :go-type="state.goMapping[field]"
                   :type="state.mapping[field]"
+                  :primary-key="state.primaryKey"
                   :disabled="!canEdit(field)"
                 />
               </div>

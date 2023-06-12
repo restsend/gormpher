@@ -10,8 +10,8 @@ menus.value = await api.getObjectNames()
 </script>
 
 <template>
-  <div class="flex flex-col h-screen">
-    <nav class="navbar bg-base-100 shadow-sm fixed top-0 z-100">
+  <div class="h-screen flex flex-col">
+    <nav class="navbar fixed top-0 z-100 bg-base-100 shadow-sm">
       <div class="navbar-start">
         <div class="dropdown">
           <!-- Mobile -->
@@ -19,7 +19,7 @@ menus.value = await api.getObjectNames()
             <label tabindex="0" class="btn btn-ghost btn-circle">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" /></svg>
             </label>
-            <ul tabindex="0" class="menu menu-compact dropdown-content mt-3 p-2 shadow bg-base-100 rounded-box w-52">
+            <ul tabindex="0" class="dropdown-content menu menu-compact mt-3 w-52 bg-base-100 p-2 shadow rounded-box">
               <li v-for="menu in menus" :key="menu">
                 <a @click="name = menu">
                   <div class="i-bi:lightning text-lg" />
@@ -32,7 +32,7 @@ menus.value = await api.getObjectNames()
           </div>
           <!-- Desktop -->
           <div class="mx-4 hidden sm:block">
-            <a class="btn btn-ghost normal-case text-2xl" @click="name = ''">
+            <a class="btn btn-ghost text-2xl normal-case" @click="name = ''">
               Gormpher Admin
             </a>
           </div>
@@ -51,10 +51,10 @@ menus.value = await api.getObjectNames()
       </div>
     </nav>
 
-    <main class="flex-1 flex flex-row my-20">
-      <div class="shrink-0 hidden sm:block sm:w-1/5">
+    <main class="my-20 flex flex-1 flex-row">
+      <div class="hidden shrink-0 sm:block sm:w-1/5">
         <!-- Side menu -->
-        <ul class="sticky top-20 menu mx-2">
+        <ul class="menu sticky top-20 mx-2">
           <li class="menu-title">
             <span>Index</span>
           </li>
@@ -79,7 +79,7 @@ menus.value = await api.getObjectNames()
       </div>
       <div class="mr-2 w-full sm:w-4/5">
         <template v-if="name">
-          <div class="px-4 text-sm breadcrumbs">
+          <div class="breadcrumbs px-4 text-sm">
             <ul>
               <li>Webobjects</li>
               <li>{{ name }}</li>
@@ -93,7 +93,7 @@ menus.value = await api.getObjectNames()
       </div>
     </main>
 
-    <footer class="footer footer-center p-4 bg-base-300 text-base-content">
+    <footer class="footer footer-center bg-base-300 p-4 text-base-content">
       <div>
         <p>
           This project is powered by

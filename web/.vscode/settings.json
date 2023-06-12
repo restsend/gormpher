@@ -7,4 +7,5 @@
   "files.associations": {
     "*.css": "postcss"
   },
+  "vue.codeActions.enabled": false
 }

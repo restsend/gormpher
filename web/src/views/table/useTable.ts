@@ -181,6 +181,24 @@ export default function useTable({
     })
   }
 
+  async function handleBatchDelete(ids: number[] | string[]): Promise<void> {
+    confirm({
+      title: 'Delete Confirm',
+      content: 'Are you sure you want to delete all? This action cannot be undone.',
+      onPositiveClick: async () => {
+        try {
+          await Promise.all(ids.map(id => deleteFn(id)))
+        }
+        catch (err: any) {
+          alerter.error(err)
+        }
+        finally {
+          handleQuery()
+        }
+      },
+    })
+  }
+
   function handleOrder(field: string, op: OrderOp) {
     orders.value = orders.value.filter(e => e.name !== field)
     orders.value.push({ name: field, op })
@@ -195,12 +213,10 @@ export default function useTable({
   function handleFilter(field: string, op: FilterOp, value: any) {
     filters.value = filters.value.filter(e => e.name !== field)
     filters.value.push({ name: field, op, value })
-    handleQuery()
   }
 
   function handleRemoveFilter(field: string) {
     filters.value = filters.value.filter(e => e.name !== field)
-    handleQuery()
   }
 
   function handleReset() {
@@ -238,6 +254,7 @@ export default function useTable({
     handleShowAdd,
     handleDelete,
     handleBatch,
+    handleBatchDelete,
     handleReset,
   }
 }
