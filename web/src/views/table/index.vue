@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, watch } from 'vue'
 
 import Badge from './Badge.vue'
 import DynamicInput from './DynamicInput.vue'
-import DynamicItem from './DynamicItem.vue'
+import TableItem from './TableItem.vue'
 import FilterItem from './FilterItem.vue'
 import type { ActionType, TableState } from '@/types'
 
@@ -157,7 +157,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="wh-full rounded-md p-4 pb-0 space-y-4">
+  <div class="h-full w-full rounded-md p-4 pb-0 space-y-4">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center space-x-4">
@@ -258,12 +258,12 @@ onMounted(async () => {
           Delete all
         </button>
       </div>
-      <table class="table-normal wh-full table text-sm">
+      <table class="table-normal h-full w-full table text-sm">
         <thead>
           <tr>
             <template v-if="loading">
               <th :colspan="99">
-                <div class="w-full f-c-c text-sm opacity-90">
+                <div class="w-full flex items-center justify-center text-sm opacity-90">
                   <div class="i-eos-icons:three-dots-loading text-2xl" />
                 </div>
               </th>
@@ -302,7 +302,7 @@ onMounted(async () => {
           <template v-if="loading">
             <tr>
               <td :colspan="99">
-                <div class="h-96 w-full f-c-c text-sm opacity-90">
+                <div class="h-96 w-full flex items-center justify-center text-sm opacity-90">
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><rect width="6" height="14" x="1" y="4" fill="#888888"><animate id="svgSpinnersBarsScaleFade0" fill="freeze" attributeName="y" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="0;svgSpinnersBarsScaleFade1.end-0.25s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="9" y="4" fill="currentColor" opacity=".4"><animate fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.15s" dur="0.75s" values="1;.2" /></rect><rect width="6" height="14" x="17" y="4" fill="currentColor" opacity=".3"><animate id="svgSpinnersBarsScaleFade1" fill="freeze" attributeName="y" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;5" /><animate fill="freeze" attributeName="height" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="22;14" /><animate fill="freeze" attributeName="opacity" begin="svgSpinnersBarsScaleFade0.begin+0.3s" dur="0.75s" values="1;.2" /></rect></svg>
                 </div>
               </td>
@@ -311,7 +311,7 @@ onMounted(async () => {
           <template v-else-if="!list.length">
             <tr>
               <td :colspan="99">
-                <div class="min-h-96 f-c-c bg-base-100">
+                <div class="min-h-96 flex items-center justify-center bg-base-100">
                   <!-- <div class="i-simple-icons:protodotio text-5xl" /> -->
                   <span class="select-none font-mono text-5xl text-base-300">
                     Empty
@@ -332,7 +332,7 @@ onMounted(async () => {
               </th>
               <td v-for="field of state.fields" :key="field">
                 <div class="">
-                  <DynamicItem
+                  <TableItem
                     :field="field"
                     :value="item[field]"
                     :type="state.mapping[field]"

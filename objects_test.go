@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1093,6 +1092,146 @@ func TestCreateTime(t *testing.T) {
 	}
 }
 
-func TestXxx(t *testing.T) {
-	fmt.Println(reflect.TypeOf(time.Time{}).Kind())
+func TestEditTime(t *testing.T) {
+	type tmpUser struct {
+		ID       int64     `json:"id" gorm:"primarykey"`
+		Birthday time.Time `json:"birthday"`
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(tmpUser{})
+	r := gin.Default()
+
+	err := RegisterObject(&r.RouterGroup, &WebObject{
+		Name:       "user",
+		Model:      tmpUser{},
+		GetDB:      func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
+		EditFields: []string{"Birthday"},
+	})
+	assert.Nil(t, err)
+
+	db.Create(&tmpUser{ID: 1, Birthday: time.Now()})
+
+	{
+		// RFC3339: 2006-01-02T15:04:05Z07:00
+		// ISO8601: 2021-01-01T00:00:00Z
+		json := `{"birthday":"2021-01-01T00:00:00Z"}`
+		req := httptest.NewRequest("PATCH", "/user/1", strings.NewReader(json))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		val, _ := GetByID[tmpUser](db, 1)
+		assert.Equal(t, int64(1), val.ID)
+		assert.Equal(t, "2021-01-01 00:00:00 +0000 UTC", val.Birthday.String())
+	}
+	{
+		// input type="datetime-local" 2006-01-02T15:04
+		json := `{"birthday":"2023-06-13T01:17"}`
+		req := httptest.NewRequest("PATCH", "/user/1", strings.NewReader(json))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		val, _ := GetByID[tmpUser](db, 1)
+		assert.Equal(t, int64(1), val.ID)
+		assert.Equal(t, "2023-06-13 01:17:00 +0000 UTC", val.Birthday.String())
+	}
+}
+
+func TestPreloadGet(t *testing.T) {
+	type Company struct {
+		ID   int64 `gorm:"primarykey"`
+		Name string
+	}
+
+	type User struct {
+		ID        int64 `gorm:"primarykey"`
+		CompanyID int64
+		Company   Company `gorm:"foreignKey:CompanyID;references:ID"`
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(User{})
+	r := gin.Default()
+
+	err := RegisterObject(&r.RouterGroup, &WebObject{
+		Name:  "user",
+		Model: User{},
+		GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
+	})
+	assert.Nil(t, err)
+
+	db.Create(&User{ID: 1, Company: Company{ID: 1, Name: "company-1"}})
+	db.Create(&User{ID: 2, Company: Company{ID: 2, Name: "company-2"}})
+
+	client := NewTestClient(r)
+
+	var u1 User
+	err = client.CallGet("/user/1", nil, &u1)
+	assert.Nil(t, err)
+
+	assert.Equal(t, int64(1), u1.ID)
+	assert.Equal(t, int64(1), u1.CompanyID)
+	assert.Equal(t, int64(1), u1.Company.ID)
+	assert.Equal(t, "company-1", u1.Company.Name)
+
+	// db preload
+	{
+		var u2 User
+		db.Preload("Company").Take(&u2)
+		assert.Equal(t, int64(1), u2.ID)
+		assert.Equal(t, int64(1), u2.CompanyID)
+		assert.Equal(t, int64(1), u2.Company.ID)
+		assert.Equal(t, "company-1", u2.Company.Name)
+	}
+}
+
+func TestPreloadQuery(t *testing.T) {
+	type Company struct {
+		ID   int64 `gorm:"primarykey"`
+		Name string
+	}
+
+	type User struct {
+		ID        int64 `gorm:"primarykey"`
+		CompanyID int64
+		Company   Company `gorm:"foreignKey:CompanyID;references:ID"`
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(User{})
+	r := gin.Default()
+
+	err := RegisterObject(&r.RouterGroup, &WebObject{
+		Name:  "user",
+		Model: User{},
+		GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
+	})
+	assert.Nil(t, err)
+
+	db.Create(&User{ID: 1, Company: Company{ID: 1, Name: "company-1"}})
+	db.Create(&User{ID: 2, Company: Company{ID: 2, Name: "company-2"}})
+
+	client := NewTestClient(r)
+
+	var us1 QueryResult[[]User]
+	err = client.CallPost("/user", nil, &us1)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(us1.Items))
+	assert.Equal(t, int64(1), us1.Items[0].Company.ID)
+	assert.Equal(t, "company-1", us1.Items[0].Company.Name)
+	assert.Equal(t, int64(2), us1.Items[1].Company.ID)
+	assert.Equal(t, "company-2", us1.Items[1].Company.Name)
+
+	// db preload
+	{
+		var us2 []User
+		db.Preload("Company").Find(&us2)
+		assert.Len(t, us2, 2)
+		assert.Equal(t, int64(1), us2[0].Company.ID)
+		assert.Equal(t, "company-1", us2[0].Company.Name)
+		assert.Equal(t, int64(2), us2[1].Company.ID)
+		assert.Equal(t, "company-2", us2[1].Company.Name)
+	}
 }

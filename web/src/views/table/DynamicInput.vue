@@ -32,6 +32,7 @@ const value = computed({
       <template v-else>
         <input
           v-model="value"
+          class="input input-sm input-bordered w-full"
           type="datetime-local"
           :disabled="disabled"
         >
@@ -62,12 +63,18 @@ const value = computed({
       >
     </template>
     <template v-else>
-      <textarea
+      <input
+        v-model="value"
+        :disabled="disabled"
+        type="text"
+        class="input input-sm input-bordered w-full"
+      >
+      <!-- <textarea
         v-model="value"
         :disabled="disabled"
         type="text"
         class="textarea"
-      />
+      /> -->
     </template>
   </div>
 </template>

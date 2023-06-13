@@ -27,8 +27,14 @@ type Product struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	GroupID   int       `json:"-"`
+	Group     Group     `json:"group" gorm:"foreignKey:GroupID;references:ID"` // association
 	Name      string    `json:"name"`
 	Enabled   bool      `json:"enabled"`
+}
+
+type Group struct {
+	ID   uint   `json:"id" gorm:"primarykey"`
+	Name string `json:"name"`
 }
 
 func main() {
@@ -91,7 +97,14 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			OnCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 				p := (vptr).(*Product)
 				p.UUID = MockUUID(8)
-				p.GroupID = rand.Intn(5)
+
+				// create group
+				group := Group{Name: "group" + MockUUID(4)}
+				if err := db.Create(&group).Error; err != nil {
+					return err
+				}
+
+				p.GroupID = int(group.ID)
 				return nil
 			},
 			OnDelete: func(ctx *gin.Context, vptr any) error {

@@ -8,29 +8,6 @@ go get github.com/restsend/gormpher
 ```
 
 ```go
-package main
-
-import (
-	"errors"
-	"flag"
-	"math/rand"
-	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/restsend/gormpher"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-)
-
-type Product struct {
-	UUID      string    `json:"id" gorm:"primarykey"`
-	GroupID   int       `json:"-"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Enabled   bool      `json:"enabled"`
-}
-
 type User struct {
 	ID        uint       `json:"id" gorm:"primarykey"`
 	CreatedAt time.Time  `json:"createdAt"`
@@ -38,7 +15,22 @@ type User struct {
 	Name      string     `json:"name"`
 	Age       int        `json:"age"`
 	Enabled   bool       `json:"enabled"`
-	LastLogin *time.Time `json:"lastLogin,omitempty"`
+	LastLogin *time.Time `json:"lastLogin"`
+}
+
+type Product struct {
+	UUID      string    `json:"id" gorm:"primarykey"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	GroupID   int       `json:"-"`
+	Group     Group     `json:"group" gorm:"foreignKey:GroupID;references:ID"` // association
+	Name      string    `json:"name"`
+	Enabled   bool      `json:"enabled"`
+}
+
+type Group struct {
+	ID   uint   `json:"id" gorm:"primarykey"`
+	Name string `json:"name"`
 }
 
 func main() {
@@ -55,7 +47,6 @@ func main() {
 	r := gin.Default()
 
 	objs := GetWebObjects(db)
-
 	// visit API: http://localhost:8890/api
 	gormpher.RegisterObjects(r, objs)
 	// visit Admin: http://localhost:8890/admin
@@ -75,15 +66,13 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/user/:key
 		// DELETE http://localhost:8890/user
 		{
-			Name:      "user",
-			Model:     &User{},
-			Searchs:   []string{"Name", "Enabled"},
-			Editables: []string{"Name", "Age", "Enabled"},
-			Filters:   []string{"Name", "CreatedAt", "Age", "Enabled"},
-			Orders:    []string{"CreatedAt", "Age", "Enabled"},
-			GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB {
-				return db
-			},
+			Name:         "user",
+			Model:        &User{},
+			SearchFields: []string{"Name", "Enabled"},
+			EditFields:   []string{"Name", "Age", "Enabled", "LastLogin"},
+			FilterFields: []string{"Name", "CreatedAt", "Age", "Enabled"},
+			OrderFields:  []string{"CreatedAt", "Age", "Enabled"},
+			GetDB:        func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 		},
 		// Advanced Demo
 		// Check API File: product.http
@@ -94,19 +83,24 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/product/:key
 		// DELETE http://localhost:8890/product
 		{
-			Name:      "product",
-			Model:     &Product{},
-			Searchs:   []string{"Name"},
-			Editables: []string{"Name", "Enabled"},
-			Filters:   []string{"Name", "CreatedAt", "Enabled"},
-			Orders:    []string{"CreatedAt"},
-			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-				return db
-			},
-			OnCreate: func(ctx *gin.Context, vptr any) error {
+			Name:         "product",
+			Model:        &Product{},
+			SearchFields: []string{"Name"},
+			EditFields:   []string{"Name", "Enabled", "Model"},
+			FilterFields: []string{"Name", "CreatedAt", "Enabled"},
+			OrderFields:  []string{"CreatedAt"},
+			GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
+			OnCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 				p := (vptr).(*Product)
 				p.UUID = MockUUID(8)
-				p.GroupID = rand.Intn(5)
+
+				// create group
+				group := Group{Name: "group" + MockUUID(4)}
+				if err := db.Create(&group).Error; err != nil {
+					return err
+				}
+
+				p.GroupID = int(group.ID)
 				return nil
 			},
 			OnDelete: func(ctx *gin.Context, vptr any) error {
@@ -122,7 +116,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 				{
 					Name:   "all_enabled",
 					Method: "GET",
-					Prepare: func(db *gorm.DB, c *gin.Context) (*gorm.DB, *gormpher.QueryForm, error) {
+					Prepare: func(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB, *gormpher.QueryForm, error) {
 						// SELECT (id, name) FROM products WHERE enabled = true
 						queryForm := &gormpher.QueryForm{
 							Limit: -1,
@@ -153,7 +147,11 @@ Run the project and visit [http://localhost:8890/admin](http://localhost:8890/ad
 
 ![image](https://user-images.githubusercontent.com/48195906/227763154-c13addc4-28bf-4572-8fce-1110e6cdae8e.png)
 
-## Webobject With Optional Admins Web UI
+## Features
 
-## Generic Gorm Function
+### Generate CRUD Restful API
+
+### Optional Admin Web UI
+
+### Generic Gorm Function
 

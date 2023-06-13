@@ -89,6 +89,8 @@ type WebObject struct {
 	modelElem  reflect.Type
 	jsonPKName string
 	gormPKName string
+	preloads   []string // for Preload
+
 	// Map json tag to struct field name. such as:
 	// UUID string `json:"id"` => {"id" : "UUID"}
 	jsonToFields map[string]string
@@ -263,7 +265,7 @@ func (obj *WebObject) Build() error {
 
 	obj.gormPKName = getPkColumnName(rt)
 	if obj.gormPKName == "" {
-		return fmt.Errorf("%s not has primaryKey", obj.Name)
+		return fmt.Errorf("%s not has primary key", obj.Name)
 	}
 
 	obj.jsonToFields = make(map[string]string)
@@ -304,6 +306,23 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 			continue
 		}
 
+		// TODO: how to decide whether to preload?
+		if strings.Contains(gormTag, "foreignKey") ||
+			strings.Contains(gormTag, "references") ||
+			strings.Contains(gormTag, "many2many") {
+
+			exist := false
+			for _, preload := range obj.preloads {
+				if preload == f.Name {
+					exist = true
+				}
+			}
+
+			if !exist {
+				obj.preloads = append(obj.preloads, f.Name)
+			}
+		}
+
 		if strings.ToLower(gormTag) == "primarykey" {
 			if jsonTag == "-" || jsonTag == "" {
 				obj.jsonPKName = f.Name
@@ -318,20 +337,28 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 	key := c.Param("key")
 	db := obj.GetDB(c, false)
 
-	val := reflect.New(obj.modelElem).Interface()
-	result := db.Where(obj.gormPKName, key).Take(&val)
+	val := reflect.New(obj.modelElem).Interface() // ptr
+
+	// preload
+	if len(obj.preloads) > 0 {
+		for _, preload := range obj.preloads {
+			db = db.Preload(preload)
+		}
+	}
+
+	result := db.Where(obj.gormPKName, key).Take(val)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+			handleError(c, http.StatusNotFound, "not found")
 		} else {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+			handleError(c, http.StatusInternalServerError, result.Error)
 		}
 		return
 	}
 
 	if obj.OnRender != nil {
 		if err := obj.OnRender(c, val); err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			handleError(c, http.StatusInternalServerError, err)
 			return
 		}
 	}
@@ -342,7 +369,7 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 func handleCreateObject(c *gin.Context, obj *WebObject) {
 	var vals map[string]any
 	if err := c.BindJSON(&vals); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -366,20 +393,20 @@ func handleCreateObject(c *gin.Context, obj *WebObject) {
 	}
 	decoder, _ := mapstructure.NewDecoder(&config)
 	if err := decoder.Decode(vals); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, http.StatusBadRequest, err)
 		return
 	}
 
 	if obj.OnCreate != nil {
 		if err := obj.OnCreate(c, val, vals); err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			handleError(c, http.StatusBadRequest, err)
 			return
 		}
 	}
 
 	result := obj.GetDB(c, true).Create(val)
 	if result.Error != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		handleError(c, http.StatusInternalServerError, result.Error)
 		return
 	}
 
@@ -391,7 +418,7 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 
 	var inputVals map[string]any
 	if err := c.BindJSON(&inputVals); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -418,7 +445,7 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 		}
 
 		if !checkType(kind, reflect.TypeOf(v).Kind()) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("%s type not match", fname)})
+			handleError(c, http.StatusBadRequest, fname+" type not match")
 			return
 		}
 
@@ -438,18 +465,18 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 	}
 
 	if len(vals) == 0 {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "not changed"})
+		handleError(c, http.StatusBadRequest, "not changed")
 		return
 	}
 
 	if obj.OnUpdate != nil {
 		val := reflect.New(obj.modelElem).Interface()
 		if err := db.First(val, obj.gormPKName, key).Error; err != nil {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+			handleError(c, http.StatusNotFound, "not found")
 			return
 		}
 		if err := obj.OnUpdate(c, val, inputVals); err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			handleError(c, http.StatusBadRequest, err)
 			return
 		}
 	}
@@ -457,7 +484,7 @@ func handleEditObject(c *gin.Context, obj *WebObject) {
 	model := reflect.New(obj.modelElem).Interface()
 	result := db.Model(model).Where(obj.gormPKName, key).Updates(vals)
 	if result.Error != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		handleError(c, http.StatusInternalServerError, result.Error)
 		return
 	}
 
@@ -475,23 +502,23 @@ func handleDeleteObject(c *gin.Context, obj *WebObject) {
 	// for gorm delete hook, need to load model first.
 	if r.Error != nil {
 		if errors.Is(r.Error, gorm.ErrRecordNotFound) {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+			handleError(c, http.StatusNotFound, "not found")
 		} else {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": r.Error.Error()})
+			handleError(c, http.StatusInternalServerError, r.Error)
 		}
 		return
 	}
 
 	if obj.OnDelete != nil {
 		if err := obj.OnDelete(c, val); err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			handleError(c, http.StatusBadRequest, err)
 			return
 		}
 	}
 
 	r = db.Delete(val)
 	if r.Error != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": r.Error.Error()})
+		handleError(c, http.StatusInternalServerError, r.Error)
 		return
 	}
 
@@ -501,7 +528,7 @@ func handleDeleteObject(c *gin.Context, obj *WebObject) {
 func handleBatchDelete(c *gin.Context, obj *WebObject) {
 	var form []string
 	if err := c.BindJSON(&form); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -510,7 +537,7 @@ func handleBatchDelete(c *gin.Context, obj *WebObject) {
 	val := reflect.New(obj.modelElem).Interface()
 	r := db.Delete(&val, form)
 	if r.Error != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": r.Error.Error()})
+		handleError(c, http.StatusInternalServerError, r.Error)
 		return
 	}
 
@@ -520,7 +547,7 @@ func handleBatchDelete(c *gin.Context, obj *WebObject) {
 func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery) {
 	db, form, err := prepareQuery(obj.GetDB(c, false), c, obj.Pagination)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -589,7 +616,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 
 	r, err := QueryObjects(db, obj, form)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -599,7 +626,7 @@ func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery
 			for i := 0; i < vals.Len(); i++ {
 				v := vals.Index(i).Addr().Interface()
 				if err := obj.OnRender(c, v); err != nil {
-					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					handleError(c, http.StatusInternalServerError, err)
 					return
 				}
 				vals.Index(i).Set(reflect.ValueOf(v).Elem())
@@ -664,6 +691,12 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 		offset = form.Pos
 	}
 
+	if len(obj.preloads) > 0 {
+		for _, v := range obj.preloads {
+			db = db.Preload(v)
+		}
+	}
+
 	result := db.Offset(offset).Limit(form.Limit).Find(items.Interface())
 	if result.Error != nil {
 		return r, result.Error
@@ -717,5 +750,18 @@ func checkType(goKind, jsonKind reflect.Kind) bool {
 		return jsonKind == reflect.Float64
 	default:
 		return goKind == jsonKind
+	}
+}
+
+func handleError(c *gin.Context, code int, err any) {
+	switch err := err.(type) {
+	case error:
+		c.AbortWithStatusJSON(code, gin.H{"error": err.Error()})
+		c.Error(err)
+	case string:
+		c.AbortWithStatusJSON(code, gin.H{"error": err})
+		c.Error(errors.New(err))
+	default:
+		c.AbortWithStatusJSON(code, gin.H{"error": fmt.Sprintf("unknown error: %v", err)})
 	}
 }

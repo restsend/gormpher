@@ -38,10 +38,10 @@ defineProps<{
   <template v-else-if="type === 'number'">
     {{ value }}
   </template>
-  <!-- TODO: 多表关联 -->
+  <!-- TODO:  -->
   <template v-else>
     <span class="cursor-default">
-      <!-- {{ value }} -->
+      {{ value }}
     </span>
   </template>
 </template>
