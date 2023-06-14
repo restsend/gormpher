@@ -402,7 +402,7 @@ onMounted(async () => {
     </div>
   </div>
 
-  <!-- Edit Modal -->
+  <!-- Edit/Add Modal -->
   <div>
     <input v-model="modalVisible" type="checkbox" class="modal-toggle">
     <div class="modal" @click.self="modalVisible = false">
@@ -428,7 +428,7 @@ onMounted(async () => {
                   :go-type="state.goMapping[field]"
                   :type="state.mapping[field]"
                   :primary-key="state.primaryKey"
-                  :disabled="!canEdit(field)"
+                  :disabled="form.id && !canEdit(field)"
                 />
               </div>
             </div>

@@ -19,7 +19,7 @@ function handleQueryFilter(filter: Filter) {
     emit('handleQuery')
 }
 
-const filterOptions = ['=', '<>', 'in', 'not_in', '>', '>=', '<', '<=']
+const filterOptions = ['=', '<>', 'in', 'not_in', '>', '>=', '<', '<=', 'like']
 </script>
 
 <template>

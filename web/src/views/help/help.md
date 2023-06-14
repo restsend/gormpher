@@ -26,7 +26,7 @@ QueryForm:
 |  limit | number  |    |  50  |
 |  keyword | number  |    | ""  |
 |  filters | <a class="link">[]Filter</a>  |   | null  |
-|  orders | <a class="link">[]Order |    | null |
+|  orders | <a class="link">[]Order</a> |    | null |
 
 Filter:
 

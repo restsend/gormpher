@@ -94,7 +94,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			FilterFields: []string{"Name", "CreatedAt", "Enabled"},
 			OrderFields:  []string{"CreatedAt"},
 			GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
-			OnCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
+			BeforeCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 				p := (vptr).(*Product)
 				p.UUID = MockUUID(8)
 
@@ -107,7 +107,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 				p.GroupID = int(group.ID)
 				return nil
 			},
-			OnDelete: func(ctx *gin.Context, vptr any) error {
+			BeforeDelete: func(ctx *gin.Context, vptr any) error {
 				p := (vptr).(*Product)
 				if p.Enabled {
 					return errors.New("product is enabled, can not delete")

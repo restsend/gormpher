@@ -47,26 +47,7 @@ func getColumnName(rt reflect.Type, name string) string {
 
 func GetPkColumnName[T any]() string {
 	rt := reflect.TypeOf(new(T)).Elem()
-
-	var columnName string
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
-		isPrimaryKey := utils.CheckTruth(tagSetting["PRIMARYKEY"], tagSetting["PRIMARY_KEY"])
-		if isPrimaryKey {
-			name, ok := tagSetting["COLUMN"]
-			if !ok {
-				namingStrategy := schema.NamingStrategy{}
-				name = namingStrategy.ColumnName("", field.Name)
-			}
-			columnName = name
-			break
-		}
-	}
-	if columnName == "" {
-		return "id"
-	}
-	return columnName
+	return getPkColumnName(rt)
 }
 
 func GetPkJsonName[T any]() string {

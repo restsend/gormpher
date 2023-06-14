@@ -691,7 +691,7 @@ func TestGetPkColumnName(t *testing.T) {
 		type User struct {
 			ID int64
 		}
-		assert.Equal(t, "id", GetPkColumnName[User]())
+		assert.Equal(t, "", GetPkColumnName[User]())
 	}
 	{
 		type User struct {

@@ -61,6 +61,7 @@ func TestObjectCRUD(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 		assert.Contains(t, w.Body.String(), `"uid":1`)
+		assert.Contains(t, w.Body.String(), `"Name":"user"`)
 	}
 	// Update
 	{
@@ -150,7 +151,7 @@ func TestObjectQuery(t *testing.T) {
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
-		OnRender: func(c *gin.Context, obj any) error {
+		BeforeRender: func(c *gin.Context, obj any) error {
 			return nil
 		},
 	}
@@ -800,28 +801,28 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
 		},
-		OnCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
+		BeforeCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 			user := (vptr).(*tuser)
 			if user.Name == "dangerous" {
 				return errors.New("alice is not allowed to create")
 			}
 			return nil
 		},
-		OnRender: func(ctx *gin.Context, vptr any) error {
+		BeforeRender: func(ctx *gin.Context, vptr any) error {
 			user := (vptr).(*tuser)
 			if user.Name != "alice" {
 				user.Age = 99
 			}
 			return nil
 		},
-		OnDelete: func(ctx *gin.Context, vptr any) error {
+		BeforeDelete: func(ctx *gin.Context, vptr any) error {
 			user := (vptr).(*tuser)
 			if user.Name == "alice" {
 				return errors.New("alice is not allowed to delete")
 			}
 			return nil
 		},
-		OnUpdate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
+		BeforeUpdate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 			user := (vptr).(*tuser)
 			if user.Name == "alice" {
 				return errors.New("alice is not allowed to update")

@@ -1,9 +1,8 @@
 @env = http://localhost:8890
-@contentType = application/json
 
 ### Create
 PUT {{env}}/user
-Content-Type: {{contentType}}
+Content-Type: application/json
 
 {
   "name": "user",
@@ -12,7 +11,7 @@ Content-Type: {{contentType}}
 
 ### Update
 PATCH {{env}}/user/1
-Content-Type: {{contentType}}
+Content-Type: application/json
 
 {
   "name": "updated",
@@ -21,7 +20,7 @@ Content-Type: {{contentType}}
 
 ### Query
 POST {{env}}/user
-Content-Type: {{contentType}}
+Content-Type: application/json
 
 {
   "pos": 0,
@@ -33,6 +32,6 @@ DELETE {{env}}/user/1
 
 ### Batch Delete
 POST {{env}}/user/batch
-Connection: {{contentType}}
+Connection: application/json
 
-["1", "2", "3", "demoid"]
+["1", "2", "3", "demoId"]

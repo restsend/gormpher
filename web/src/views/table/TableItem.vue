@@ -22,7 +22,7 @@ defineProps<{
   <template v-else-if="goType === 'time.Time' || goType === '*time.Time'">
     <div class="tooltip" :data-tip="useTimeAgo(value as string).value">
       <span class="cursor-default text-sm text-gray-500">
-        {{ formatDate(value as string) }}
+        {{ value ? formatDate(value as string) : '' }}
       </span>
     </div>
   </template>
