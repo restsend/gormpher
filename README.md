@@ -7,7 +7,23 @@ Gormpher - Generate restful APIs by defining struct model, based on Gin and Gorm
 go get github.com/restsend/gormpher
 ```
 
+reference to [example](https://github.com/restsend/gormpher/blob/main/examples/main.go)
+
 ```go
+package main
+
+import (
+	"errors"
+	"flag"
+	"math/rand"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/restsend/gormpher"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
 type User struct {
 	ID        uint       `json:"id" gorm:"primarykey"`
 	CreatedAt time.Time  `json:"createdAt"`
@@ -90,7 +106,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			FilterFields: []string{"Name", "CreatedAt", "Enabled"},
 			OrderFields:  []string{"CreatedAt"},
 			GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
-			OnCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
+			BeforeCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
 				p := (vptr).(*Product)
 				p.UUID = MockUUID(8)
 
@@ -103,7 +119,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 				p.GroupID = int(group.ID)
 				return nil
 			},
-			OnDelete: func(ctx *gin.Context, vptr any) error {
+			BeforeDelete: func(ctx *gin.Context, vptr any) error {
 				p := (vptr).(*Product)
 				if p.Enabled {
 					return errors.New("product is enabled, can not delete")
