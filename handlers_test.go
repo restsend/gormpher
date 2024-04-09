@@ -439,7 +439,7 @@ func TestHandleQueryNil(t *testing.T) {
 		var result QueryResult[[]testUser]
 		err := client.CallPost("/user", nil, &result)
 		assert.Nil(t, err)
-		assert.Equal(t, 3, result.TotalCount)
+		assert.Equal(t, 3, result.Total)
 		assert.Equal(t, "alice", result.Items[0].Name)
 		assert.Equal(t, 12, result.Items[0].Age)
 	}
@@ -468,7 +468,7 @@ func TestHandleQuery(t *testing.T) {
 		var result QueryResult[[]testUser]
 		err := client.CallPost("/user", &QueryForm{}, &result)
 		assert.Nil(t, err)
-		assert.Equal(t, 3, result.TotalCount)
+		assert.Equal(t, 3, result.Total)
 	}
 	// filter
 	{
@@ -479,7 +479,7 @@ func TestHandleQuery(t *testing.T) {
 			},
 		}, &result)
 		assert.Nil(t, err)
-		assert.Equal(t, 1, result.TotalCount)
+		assert.Equal(t, 1, result.Total)
 		assert.Equal(t, "alice", result.Items[0].Name)
 	}
 	// search
@@ -487,7 +487,7 @@ func TestHandleQuery(t *testing.T) {
 		var result QueryResult[[]testUser]
 		err := client.CallPost("/user", &QueryForm{Keyword: "bob"}, &result)
 		assert.Nil(t, err)
-		assert.Equal(t, 1, result.TotalCount)
+		assert.Equal(t, 1, result.Total)
 		assert.Equal(t, "bob", result.Items[0].Name)
 	}
 	// order
@@ -500,7 +500,7 @@ func TestHandleQuery(t *testing.T) {
 			},
 		}, &result)
 		assert.Nil(t, err)
-		assert.Equal(t, 3, result.TotalCount)
+		assert.Equal(t, 3, result.Total)
 		assert.Equal(t, "clash", result.Items[0].Name)
 		// asc
 		err = client.CallPost("/user", &QueryForm{
@@ -509,7 +509,7 @@ func TestHandleQuery(t *testing.T) {
 			},
 		}, &result)
 		assert.Nil(t, err)
-		assert.Equal(t, 3, result.TotalCount)
+		assert.Equal(t, 3, result.Total)
 		assert.Equal(t, "alice", result.Items[0].Name)
 	}
 }

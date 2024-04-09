@@ -95,7 +95,7 @@ func TestObjectCRUD(t *testing.T) {
 		var res QueryResult[[]User]
 		err := json.Unmarshal(w.Body.Bytes(), &res)
 		assert.Nil(t, err)
-		assert.Equal(t, 1, res.TotalCount)
+		assert.Equal(t, 1, res.Total)
 		assert.Equal(t, "update", res.Items[0].Name)
 	}
 	// Delete
@@ -122,7 +122,7 @@ func TestObjectCRUD(t *testing.T) {
 		var res QueryResult[[]User]
 		err := json.Unmarshal(w.Body.Bytes(), &res)
 		assert.Nil(t, err)
-		assert.Equal(t, 1, res.TotalCount)
+		assert.Equal(t, 1, res.Total)
 	}
 }
 
@@ -323,7 +323,7 @@ func TestObjectQuery(t *testing.T) {
 				var res QueryResult[[]User]
 				err := json.Unmarshal(w.Body.Bytes(), &res)
 				assert.Nil(t, err)
-				assert.Equal(t, tt.expect.Num, res.TotalCount)
+				assert.Equal(t, tt.expect.Num, res.Total)
 			})
 		}
 
@@ -730,7 +730,7 @@ func TestObjectRegister(t *testing.T) {
 
 				var res QueryResult[User]
 				json.Unmarshal(w.Body.Bytes(), &res)
-				assert.Equal(t, tt.expect.Total, res.TotalCount)
+				assert.Equal(t, tt.expect.Total, res.Total)
 			})
 		}
 	}
@@ -775,7 +775,7 @@ func TestBatchDelete(t *testing.T) {
 	r.ServeHTTP(w, req)
 	var res QueryResult[[]User]
 	json.Unmarshal(w.Body.Bytes(), &res)
-	assert.Equal(t, 1, res.TotalCount)
+	assert.Equal(t, 1, res.Total)
 }
 
 type tuser struct {
@@ -848,7 +848,7 @@ func TestOnRender(t *testing.T) {
 	err := c.CallPost("/user", nil, &res)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 3, res.TotalCount)
+	assert.Equal(t, 3, res.Total)
 	assert.Equal(t, 9, res.Items[0].Age)
 	assert.Equal(t, 99, res.Items[1].Age)
 	assert.Equal(t, 99, res.Items[2].Age)
@@ -923,7 +923,7 @@ func TestQueryViews(t *testing.T) {
 	var result QueryResult[[]tuser]
 	err = client.CallGet("/user/names", nil, &result)
 	assert.Nil(t, err)
-	assert.Equal(t, 200, result.TotalCount)
+	assert.Equal(t, 200, result.Total)
 	assert.Equal(t, 200, len(result.Items))
 	assert.Equal(t, 0, result.Items[10].Age)
 	assert.NotZero(t, result.Items[10].ID)
@@ -953,7 +953,7 @@ func TestPagination(t *testing.T) {
 
 		var result QueryResult[[]tuser]
 		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1}, &result)
-		assert.Equal(t, 3, result.TotalCount)
+		assert.Equal(t, 3, result.Total)
 		assert.Len(t, result.Items, 1)
 		assert.Equal(t, "user-2", result.Items[0].Name)
 	}
@@ -979,7 +979,7 @@ func TestPagination(t *testing.T) {
 
 		var result QueryResult[[]tuser]
 		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1}, &result)
-		assert.Equal(t, 3, result.TotalCount)
+		assert.Equal(t, 3, result.Total)
 		assert.Len(t, result.Items, 1)
 		assert.Equal(t, "user-3", result.Items[0].Name)
 
@@ -1020,7 +1020,7 @@ func TestColumnName(t *testing.T) {
 		Filters: []Filter{
 			{Name: "Name", Op: "=", Value: "user-2"},
 		}}, &result)
-	assert.Equal(t, 1, result.TotalCount)
+	assert.Equal(t, 1, result.Total)
 	assert.Len(t, result.Items, 1)
 	assert.Equal(t, "user-2", result.Items[0].Name)
 }

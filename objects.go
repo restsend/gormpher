@@ -21,23 +21,7 @@ const (
 	MaxQueryLimit     = 150
 )
 
-const (
-	FilterOpEqual          = "="
-	FilterOpNotEqual       = "<>"
-	FilterOpIn             = "in"
-	FilterOpNotIn          = "not_in"
-	FilterOpGreater        = ">"
-	FilterOpGreaterOrEqual = ">="
-	FilterOpLess           = "<"
-	FilterOpLessOrEqual    = "<="
-	FilterOpLike           = "like"
-)
-
-const (
-	OrderOpDesc = "desc"
-	OrderOpAsc  = "asc"
-)
-
+// Request method
 const (
 	GET    = 1 << 1
 	CREATE = 1 << 2
@@ -121,11 +105,11 @@ type QueryForm struct {
 }
 
 type QueryResult[T any] struct {
-	TotalCount int    `json:"total,omitempty"`
-	Pos        int    `json:"pos,omitempty"`
-	Limit      int    `json:"limit,omitempty"`
-	Keyword    string `json:"keyword,omitempty"`
-	Items      T      `json:"items"`
+	Total   int    `json:"total,omitempty"`
+	Pos     int    `json:"pos,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+	Keyword string `json:"keyword,omitempty"`
+	Items   T      `json:"items"`
 }
 
 // GetQuery return the combined filter SQL statement.
@@ -133,24 +117,24 @@ type QueryResult[T any] struct {
 func (f *Filter) GetQuery() string {
 	var op string
 	switch f.Op {
-	case FilterOpEqual:
-		op = "="
-	case FilterOpNotEqual:
-		op = "<>"
-	case FilterOpIn:
+	case "in", "IN":
 		op = "IN"
-	case FilterOpNotIn:
+	case "not_in", "NOT_IN":
 		op = "NOT IN"
-	case FilterOpGreater:
-		op = ">"
-	case FilterOpGreaterOrEqual:
-		op = ">="
-	case FilterOpLess:
-		op = "<"
-	case FilterOpLessOrEqual:
-		op = "<="
-	case FilterOpLike:
+	case "like", "LIKE":
 		op = "LIKE"
+	case "=", "equal", "EQUAL":
+		op = "="
+	case "<>", "not_equal", "NOT_EQUAL", "!=":
+		op = "<>"
+	case ">", "greater", "GREATER":
+		op = ">"
+	case "greater_or_equal", "GREATER_OR_EQUAL", ">=":
+		op = ">="
+	case "<", "less", "LESS":
+		op = "<"
+	case "less_or_equal", "LESS_OR_EQUAL", "<=":
+		op = "<="
 	}
 
 	if op == "" {
@@ -162,11 +146,13 @@ func (f *Filter) GetQuery() string {
 
 // GetQuery return the combined order SQL statement.
 // such as "id DESC".
-func (f *Order) GetQuery() string {
-	if f.Op == OrderOpDesc {
-		return f.Name + " DESC"
+func (o *Order) GetQuery() string {
+	switch o.Op {
+	case "desc", "DESC":
+		return o.Name + " DESC"
+	default:
+		return o.Name + " ASC"
 	}
-	return f.Name + " ASC"
 }
 
 func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
@@ -195,7 +181,6 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 			handleUpdateObject(c, obj)
 		})
 	}
-
 	if allowMethods&DELETE != 0 {
 		r.DELETE(filepath.Join(p, ":key"), func(c *gin.Context) {
 			handleDeleteObject(c, obj)
@@ -240,8 +225,7 @@ func RegisterObject(r gin.IRoutes, obj *WebObject) error {
 func RegisterObjects(r gin.IRoutes, objs []WebObject) {
 	for idx := range objs {
 		obj := &objs[idx]
-		err := obj.RegisterObject(r)
-		if err != nil {
+		if err := obj.RegisterObject(r); err != nil {
 			log.Fatalf("RegisterObject [%s] fail %v\n", obj.Name, err)
 		}
 	}
@@ -382,7 +366,7 @@ func handleCreateObject(c *gin.Context, obj *WebObject) {
 			if f.Kind() != reflect.String || t != reflect.TypeOf(time.Time{}) {
 				return data, nil
 			}
-			layouts := []string{time.RFC3339, "2006-01-02T15:04"}
+			layouts := []string{time.RFC3339, "2006-01-02T15:04", time.DateTime, time.DateOnly}
 			for _, layout := range layouts {
 				if val, err := time.Parse(layout, data.(string)); err == nil {
 					return val, nil
@@ -678,7 +662,7 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 	if count <= 0 {
 		return r, nil
 	}
-	r.TotalCount = int(count)
+	r.Total = int(count)
 
 	items := reflect.New(reflect.SliceOf(obj.modelElem))
 

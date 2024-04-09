@@ -321,7 +321,7 @@ func HandleQuery[T any](c *gin.Context, db *gorm.DB, ctx *QueryOption) {
 		return
 	}
 	qr.Items = list
-	qr.TotalCount = count
+	qr.Total = count
 
 	c.JSON(http.StatusOK, qr)
 }
