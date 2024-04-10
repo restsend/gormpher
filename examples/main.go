@@ -53,7 +53,7 @@ func main() {
 	objs := GetWebObjects(db)
 	// visit API: http://localhost:8890/api
 	gormpher.RegisterObjects(r, objs)
-	// visit Admin: http://localhost:8890/admin
+	// visit Admin: http://localhost:8890/admin/v1
 	gormpher.RegisterObjectsWithAdmin(r.Group("admin"), objs)
 
 	r.Run(addr)
@@ -74,7 +74,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			Model:        &User{},
 			SearchFields: []string{"Name", "Enabled"},
 			EditFields:   []string{"Name", "Age", "Enabled", "LastLogin"},
-			FilterFields: []string{"Name", "CreatedAt", "Age", "Enabled"},
+			FilterFields: []string{"Name", "CreatedAt", "UpdatedAt", "Age", "Enabled"},
 			OrderFields:  []string{"CreatedAt", "Age", "Enabled"},
 			GetDB:        func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 		},
@@ -120,7 +120,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 				{
 					Name:   "all_enabled",
 					Method: "GET",
-					Prepare: func(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB, *gormpher.QueryForm, error) {
+					Prepare: func(db *gorm.DB, c *gin.Context) (*gorm.DB, *gormpher.QueryForm, error) {
 						// SELECT (id, name) FROM products WHERE enabled = true
 						queryForm := &gormpher.QueryForm{
 							Limit: -1,

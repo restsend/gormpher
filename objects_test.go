@@ -903,7 +903,7 @@ func TestQueryViews(t *testing.T) {
 			{
 				Name:   "names",
 				Method: http.MethodGet,
-				Prepare: func(db *gorm.DB, ctx *gin.Context, pagination bool) (*gorm.DB, *QueryForm, error) {
+				Prepare: func(db *gorm.DB, ctx *gin.Context) (*gorm.DB, *QueryForm, error) {
 					return db, &QueryForm{Limit: -1, ViewFields: []string{"ID", "Name"}}, nil
 				},
 			},
@@ -937,10 +937,9 @@ func TestPagination(t *testing.T) {
 		db.AutoMigrate(tuser{})
 
 		RegisterObject(r, &WebObject{
-			Name:       "user",
-			Model:      tuser{},
-			Pagination: true,
-			GetDB:      func(c *gin.Context, isCreate bool) *gorm.DB { return db },
+			Name:  "user",
+			Model: tuser{},
+			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		})
 
 		{
@@ -952,7 +951,7 @@ func TestPagination(t *testing.T) {
 		client := NewTestClient(r)
 
 		var result QueryResult[[]tuser]
-		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1}, &result)
+		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1, Pagination: true}, &result)
 		assert.Equal(t, 3, result.Total)
 		assert.Len(t, result.Items, 1)
 		assert.Equal(t, "user-2", result.Items[0].Name)

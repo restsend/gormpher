@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin</title>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script src="https://unpkg.com/dayjs@1.8.21/dayjs.min.js"></script>
+  <script src="https://unpkg.com/dayjs@1.8.21/plugin/relativeTime.js"></script>
+  <script>dayjs.extend(window.dayjs_plugin_relativeTime)</script>
+</head>
+
+<body>
+  <script>
+    // will be replaced after golang handler
+    window.serverPrefix = '/admin'
+
+    function data() {
+      return {
+        names: [],
+        currentName: [],
+
+        keyword: '',
+        object: {
+          edits: [],
+          filters: [],
+          orders: [],
+          searchs: [],
+          fields: [],
+          types: [],
+          goTypes: [],
+          primaryKey: "",
+
+          typeMapping: {},
+          goTypeMapping: {},
+        },
+
+        total: 0,
+        limit: 0,
+        list: [],
+
+        selected: [],
+
+        get indeterminate() {
+          return this.selected.length > 0 && this.selected.length < this.list.length
+        },
+
+        clickReset() {
+          this.keyword = ''
+          this.handleQuery()
+        },
+
+        checkName(name) {
+          this.currentName = name
+          axios.get(serverPrefix + '/object/' + name).then(response => {
+            this.object = response.data
+            this.object.typeMapping = this.object.fields.reduce((acc, cur, i) => {
+              acc[cur] = this.object.types[i]
+              return acc
+            }, {})
+            this.object.goTypeMapping = this.object.fields.reduce((acc, cur, i) => {
+              acc[cur] = this.object.goTypes[i]
+              return acc
+            }, {})
+            this.handleQuery()
+          });
+        },
+
+        handleQuery() {
+          apiQuery(this.currentName, {
+            keyword: this.keyword
+          }).then(response => {
+            this.list = response.data.items || []
+            this.limit = response.data.limit
+            this.total = response.data.total
+          })
+        },
+
+        canOrder(field) {
+          return this.object.orders.includes(field)
+        },
+
+        getTags(field) {
+          const tags = []
+          this.canOrder(field) && tags.push('o')
+          if (this.object.searchs.includes(field)) tags.push('s')
+          if (this.object.edits.includes(field)) tags.push('e')
+          if (this.object.filters.includes(field)) tags.push('f')
+          return tags
+        },
+
+        initData() {
+          axios.get(serverPrefix + "/object_names").then(response => {
+            this.names = response.data
+            if (this.names.length > 0) {
+              this.checkName(this.names[0])
+            }
+          })
+        }
+      }
+    }
+
+    async function apiQuery(name, params) {
+      return axios.post(`${serverPrefix}/${name}`, params)
+    }
+  </script>
+
+  <div class="mt-8 mx-2" x-data="data()" x-init="initData">
+    <!-- table -->
+    <div class="px-4 sm:px-6 lg:px-8">
+      <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+          <!-- <h1 class="text-base font-semibold leading-6 text-gray-900">Users</h1> -->
+          <template x-for="item in names">
+            <button class="text-base leading-6 text-gray-900 mr-4" x-text="`/${item}`"
+              @click="checkName(item)"></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- header -->
+      <div class="flex gap-2 items-center mt-6">
+        <div class="flex rounded-md shadow-sm">
+          <div class="relative flex flex-grow items-stretch focus-within:z-10">
+            <input type="text" x-model="keyword"
+              class="block w-full rounded-none rounded-l-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+              placeholder="placeholder">
+          </div>
+          <button type="button" @click="handleQuery()"
+            class="relative -ml-px inline-flex items-center gap-x-1.5 rounded-r-md px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor"
+                d="m19.6 21l-6.3-6.3q-.75.6-1.725.95T9.5 16q-2.725 0-4.612-1.888T3 9.5t1.888-4.612T9.5 3t4.613 1.888T16 9.5q0 1.1-.35 2.075T14.7 13.3l6.3 6.3zM9.5 14q1.875 0 3.188-1.312T14 9.5t-1.312-3.187T9.5 5T6.313 6.313T5 9.5t1.313 3.188T9.5 14" />
+            </svg>
+          </button>
+        </div>
+
+        <button type="button" @click="clickReset()"
+          class="rounded-full p-1.5 shadow-sm hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-200">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 21 21">
+            <g fill="none" fill-rule="evenodd" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3.578 6.487A8 8 0 1 1 2.5 10.5" />
+              <path d="M7.5 6.5h-4v-4" />
+            </g>
+          </svg>
+        </button>
+
+        <button type="button"
+          class="rounded-full p-1.5 shadow-sm hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-200">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M10 18v-2h4v2zm-4-5v-2h12v2zM3 8V6h18v2z" />
+          </svg>
+        </button>
+
+        <button type="button"
+          class="rounded-full p-1.5 shadow-sm hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-200">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M2 21v-2h20v2zm1-3v-7h3v7zm5 0V6h3v12zm5 0V9h3v9zm5 0V3h3v15z" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="mt-8 flow-root">
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+            <div class="relative">
+              <template x-if="selected.length > 0">
+                <div class="absolute left-14 top-0 flex h-12 items-center space-x-3 bg-white sm:left-12">
+                  <button type="button"
+                    class="inline-flex items-center rounded bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white">
+                    Delete all</button>
+                </div>
+              </template>
+              <table class="min-w-full table-fixed divide-y divide-gray-300">
+                <thead>
+                  <tr>
+                    <th scope="col" class="relative px-7 sm:w-12 sm:px-6">
+                      <!-- TODO: 半选择状态 -->
+                      <input type="checkbox"
+                        class="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                        x-bind:checked="indeterminate || selected.length === list.length"
+                        x-on:change="selected = $event.target.checked ? list.map((p) => p.id) : []" />
+                    </th>
+                    <template x-for="field in object.fields">
+                      <th scope="col" class="min-w-[12rem] py-3.5 pr-3 text-left text-sm font-semibold text-gray-900">
+                        <div class="flex items-center">
+                          <template x-if="canOrder(field)">
+                            <div class="flex flex-col">
+                              <button class="hover:scale-150 duration-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+                                  <path fill="currentColor"
+                                    d="M18.2 13.3L12 7l-6.2 6.3c-.2.2-.3.5-.3.7s.1.5.3.7c.2.2.4.3.7.3h11c.3 0 .5-.1.7-.3c.2-.2.3-.5.3-.7s-.1-.5-.3-.7" />
+                                </svg>
+                              </button>
+                              <button class="hover:scale-150 duration-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+                                  <path fill="currentColor"
+                                    d="M5.8 9.7L12 16l6.2-6.3c.2-.2.3-.5.3-.7s-.1-.5-.3-.7c-.2-.2-.4-.3-.7-.3h-11c-.3 0-.5.1-.7.3c-.2.2-.3.4-.3.7s.1.5.3.7" />
+                                </svg>
+                              </button>
+                            </div>
+                          </template>
+                          <span x-text="field"></span>
+                          <!-- TODO: 优化标签显示 -->
+                          <template x-if="getTags(field).length > 0">
+                            <span class="bg-red-100 rounded-xl px-2" x-text="getTags(field)"></span>
+                          </template>
+                        </div>
+                      </th>
+                    </template>
+                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-3">
+                      <span class="sr-only">Edit</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                  <template x-for="item in list" :key="item.id">
+                    <tr :class="[selected.includes(item.id) && 'bg-gray-50']">
+                      <td class="relative px-7 sm:w-12 sm:px-6">
+                        <template x-if="selected.includes(item.id)"
+                          class="absolute inset-y-0 left-0 w-0.5 bg-indigo-600">
+                          <div></div> <!-- !必须加, 不然控制台报错 -->
+                        </template>
+                        <input type="checkbox"
+                          class="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                          :value="item.id" x-model="selected" />
+                      </td>
+                      <template x-for="field in object.fields">
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          <template x-if="field === 'createdAt'">
+                            <span x-text="dayjs(item.createdAt).format('YYYY-MM-DD HH:mm:ss')"></span>
+                          </template>
+                          <template x-if="field === 'updatedAt'">
+                            <!-- TODO: 时间显示不对 -->
+                            <span x-text="dayjs().to(dayjs(item.updatedAt))"></span>
+                          </template>
+                          <template x-if="field !== 'updatedAt' && field !== 'createdAt'">
+                            <span x-text="item[field]"></span>
+                          </template>
+                        </td>
+                      </template>
+                      <td
+                        :class="['whitespace-nowrap py-4 text-sm font-medium', selected.includes(item.id) ? 'text-indigo-600' : 'text-gray-900']">
+                        <a href="#" class="text-indigo-600 hover:text-indigo-900">
+                          Edit<span class="sr-only">, {{ item.name }}</span>
+                        </a>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+
+</html>

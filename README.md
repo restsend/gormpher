@@ -65,7 +65,7 @@ func main() {
 	objs := GetWebObjects(db)
 	// visit API: http://localhost:8890/api
 	gormpher.RegisterObjects(r, objs)
-	// visit Admin: http://localhost:8890/admin
+	// visit Admin: http://localhost:8890/admin/v1
 	gormpher.RegisterObjectsWithAdmin(r.Group("admin"), objs)
 
 	r.Run(addr)

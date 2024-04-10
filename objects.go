@@ -32,7 +32,7 @@ const (
 )
 
 type GetDB func(c *gin.Context, isCreate bool) *gorm.DB // designed for group
-type PrepareQuery func(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB, *QueryForm, error)
+type PrepareQuery func(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error)
 
 type (
 	BeforeCreateFunc func(ctx *gin.Context, vptr any, vals map[string]any) error
@@ -54,7 +54,7 @@ type WebObject struct {
 	GetDB GetDB
 
 	// config
-	Pagination   bool // backend pagination
+	// Pagination   bool
 	AllowMethods int
 
 	// for query
@@ -73,7 +73,7 @@ type WebObject struct {
 	modelElem  reflect.Type
 	jsonPKName string
 	gormPKName string
-	preloads   []string // for preload
+	preloads   []string // for gorm preload
 
 	// Map json tag to struct field name. such as:
 	// UUID string `json:"id"` => {"id" : "UUID"}
@@ -95,6 +95,7 @@ type Order struct {
 }
 
 type QueryForm struct {
+	Pagination   bool     `json:"pagination"`
 	Pos          int      `json:"pos"`
 	Limit        int      `json:"limit"`
 	Keyword      string   `json:"keyword,omitempty"`
@@ -528,7 +529,7 @@ func handleBatchDelete(c *gin.Context, obj *WebObject) {
 }
 
 func handleQueryObject(c *gin.Context, obj *WebObject, prepareQuery PrepareQuery) {
-	db, form, err := prepareQuery(obj.GetDB(c, false), c, obj.Pagination)
+	db, form, err := prepareQuery(obj.GetDB(c, false), c)
 	if err != nil {
 		handleError(c, http.StatusBadRequest, err)
 		return
@@ -667,7 +668,7 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 	items := reflect.New(reflect.SliceOf(obj.modelElem))
 
 	var offset int
-	if obj.Pagination {
+	if form.Pagination {
 		offset = (form.Pos - 1) * form.Limit
 	} else {
 		offset = form.Pos
@@ -689,7 +690,7 @@ func QueryObjects(db *gorm.DB, obj *WebObject, form *QueryForm) (r QueryResult[a
 }
 
 // DefaultPrepareQuery return default QueryForm.
-func DefaultPrepareQuery(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB, *QueryForm, error) {
+func DefaultPrepareQuery(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error) {
 	var form QueryForm
 	if c.Request.ContentLength > 0 {
 		if err := c.BindJSON(&form); err != nil {
@@ -697,7 +698,7 @@ func DefaultPrepareQuery(db *gorm.DB, c *gin.Context, pagination bool) (*gorm.DB
 		}
 	}
 
-	if pagination {
+	if form.Pagination {
 		if form.Pos < 1 {
 			form.Pos = 1
 		}

@@ -52,7 +52,7 @@ menus.value = await api.getObjectNames()
     </nav>
 
     <main class="my-20 flex flex-1 flex-row">
-      <div class="hidden shrink-0 sm:block sm:w-1/5">
+      <div class="hidden shrink-0 sm:block sm:w-1/7">
         <!-- Side menu -->
         <ul class="menu sticky top-20 mx-2">
           <li class="menu-title">
@@ -77,7 +77,7 @@ menus.value = await api.getObjectNames()
           </li>
         </ul>
       </div>
-      <div class="mr-2 w-full sm:w-4/5">
+      <div class="mr-2 w-full sm:w-6/7">
         <template v-if="name">
           <div class="breadcrumbs px-4 text-sm">
             <ul>

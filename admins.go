@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"reflect"
 	"strings"
@@ -12,11 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//go:embed web/dist/index.html web/dist/assets/*
+// old admin
+
+//go:embed web/dist/index.html web/dist/assets/* html/resources/*
 var assets embed.FS
 
 //go:embed web/dist/index.html
 var indexHTML string
+
+// new admin
+
+//go:embed html/index.html
+var newHTML string
 
 type AdminObject struct {
 	webObject *WebObject
@@ -113,11 +121,19 @@ func RegisterAdminHandler(r *gin.RouterGroup, m *AdminManager) {
 	r.GET("object_names", m.handleObjectNames)
 	r.GET("object/:name", m.handleObjectFields)
 
+	// old admin assets
 	r.GET("/assets/*filepath", func(ctx *gin.Context) {
 		p := path.Join("web/dist/", strings.TrimPrefix(ctx.Request.RequestURI, r.BasePath()))
 		ctx.FileFromFS(p, http.FS(assets))
 	})
-	r.GET("/", func(ctx *gin.Context) {
+
+	// new admin assets
+	r.GET("/resources/*filepath", func(ctx *gin.Context) {
+		p := path.Join("html/", strings.TrimPrefix(ctx.Request.RequestURI, r.BasePath()))
+		ctx.FileFromFS(p, http.FS(assets))
+	})
+
+	r.GET("/v1", func(ctx *gin.Context) {
 		// handle Vite packaging static resources
 		html := strings.ReplaceAll(indexHTML, "/assets/", "assets/")
 		html = strings.ReplaceAll(html,
@@ -125,6 +141,17 @@ func RegisterAdminHandler(r *gin.RouterGroup, m *AdminManager) {
 			fmt.Sprintf(`window = serverPrefix = '%s'`, r.BasePath()),
 		)
 		ctx.Data(http.StatusOK, "text/html", []byte(html))
+	})
+
+	r.GET("/v2", func(ctx *gin.Context) {
+		// for development
+		b, err := os.ReadFile("../html/index.html")
+		if err != nil {
+			panic(err)
+		}
+		ctx.Data(http.StatusOK, "text/html", b)
+
+		// ctx.Data(http.StatusOK, "text/html", []byte(newHTML))
 	})
 }
 
@@ -159,7 +186,7 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 		return
 	}
 
-	var res = make(map[string]any)
+	var result = make(map[string]any)
 
 	fields := make([]string, 0)
 	jsTypes := make([]string, 0)
@@ -184,20 +211,20 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 				goTypes = append(goTypes, f.Type.String())
 			}
 
-			res["searchs"] = obj.Searchs
-			res["filters"] = obj.Filters
-			res["orders"] = obj.Orders
-			res["edits"] = obj.Edits
-			res["primaryKey"] = obj.webObject.jsonPKName
+			result["searchs"] = obj.Searchs
+			result["filters"] = obj.Filters
+			result["orders"] = obj.Orders
+			result["edits"] = obj.Edits
+			result["primaryKey"] = obj.webObject.jsonPKName
 			break
 		}
 	}
 
-	res["fields"] = fields
-	res["goTypes"] = goTypes
-	res["types"] = jsTypes
+	result["fields"] = fields
+	result["goTypes"] = goTypes
+	result["types"] = jsTypes
 
-	c.JSON(http.StatusOK, res)
+	c.JSON(http.StatusOK, result)
 }
 
 // Support javascript type: string, number, boolean, object, any
