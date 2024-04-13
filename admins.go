@@ -59,10 +59,10 @@ func RegisterObjectsWithAdmin(r *gin.RouterGroup, objs []WebObject) {
 
 func (m *AdminManager) RegisterObject(r *gin.RouterGroup, obj WebObject) {
 	if err := obj.RegisterObject((gin.IRouter)(r)); err != nil {
-		log.Fatalf("RegisterObjectWithAdmin [%s] fail %v\n", obj.Name, err)
+		log.Fatalf("RegisterObjectWithAdmin [%s] fail %v\n", obj.Path, err)
 	}
 
-	m.Names = append(m.Names, obj.Name)
+	m.Names = append(m.Names, obj.Path)
 	m.AdminObjects = append(m.AdminObjects, woToAo(obj))
 }
 
@@ -193,7 +193,7 @@ func (m *AdminManager) handleObjectFields(c *gin.Context) {
 	goTypes := make([]string, 0)
 
 	for _, obj := range m.AdminObjects {
-		if obj.webObject.Name == name {
+		if obj.webObject.Path == name {
 			rt := obj.webObject.modelElem
 			for i := 0; i < rt.NumField(); i++ {
 				f := rt.Field(i)

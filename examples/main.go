@@ -70,7 +70,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/user/:key
 		// DELETE http://localhost:8890/user
 		{
-			Name:         "user",
+			Path:         "user",
 			Model:        &User{},
 			SearchFields: []string{"Name", "Enabled"},
 			EditFields:   []string{"Name", "Age", "Enabled", "LastLogin"},
@@ -87,7 +87,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/product/:key
 		// DELETE http://localhost:8890/product
 		{
-			Name:         "product",
+			Path:         "product",
 			Model:        &Product{},
 			SearchFields: []string{"Name"},
 			EditFields:   []string{"Name", "Enabled", "Model"},
@@ -118,7 +118,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			// GET http://localhost:8890/product/all_enabled
 			Views: []gormpher.QueryView{
 				{
-					Name:   "all_enabled",
+					Path:   "all_enabled",
 					Method: "GET",
 					Prepare: func(db *gorm.DB, c *gin.Context) (*gorm.DB, *gormpher.QueryForm, error) {
 						// SELECT (id, name) FROM products WHERE enabled = true

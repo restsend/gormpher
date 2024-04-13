@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	DefaultQueryLimit = 50
+	DefaultQueryLimit = 102400 // 100k
 	MaxQueryLimit     = 150
 )
 
@@ -35,26 +35,37 @@ type GetDB func(c *gin.Context, isCreate bool) *gorm.DB // designed for group
 type PrepareQuery func(db *gorm.DB, c *gin.Context) (*gorm.DB, *QueryForm, error)
 
 type (
-	BeforeCreateFunc func(ctx *gin.Context, vptr any, vals map[string]any) error
-	BeforeDeleteFunc func(ctx *gin.Context, vptr any) error
-	BeforeUpdateFunc func(ctx *gin.Context, vptr any, vals map[string]any) error
-	BeforeRenderFunc func(ctx *gin.Context, vptr any) error
+	BeforeCreateFunc      func(ctx *gin.Context, vptr any, vals map[string]any) error
+	BeforeDeleteFunc      func(ctx *gin.Context, vptr any) error
+	BeforeUpdateFunc      func(ctx *gin.Context, vptr any, vals map[string]any) error
+	BeforeRenderFunc      func(ctx *gin.Context, vptr any) (any, error)
+	BeforeQueryRenderFunc func(db *gorm.DB, ctx *gin.Context, r *QueryResult) (any, error)
 )
 
 type QueryView struct {
-	Name    string
-	Method  string
+	Path    string `json:"path"`
+	Method  string `json:"method"`
+	Desc    string `json:"desc"`
 	Prepare PrepareQuery
+}
+
+type WebObjectPrimaryField struct {
+	IsPrimary bool
+	Name      string
+	Kind      reflect.Kind
+	JSONName  string
 }
 
 type WebObject struct {
 	Model any
 	Group string
 	Name  string
-	GetDB GetDB
+	Desc  string
+
+	GetDB        GetDB
+	PrepareQuery PrepareQuery
 
 	// config
-	// Pagination   bool
 	AllowMethods int
 
 	// for query
@@ -65,16 +76,22 @@ type WebObject struct {
 	Views        []QueryView
 
 	// hooks
-	BeforeCreate BeforeCreateFunc
-	BeforeUpdate BeforeUpdateFunc
-	BeforeDelete BeforeDeleteFunc
-	BeforeRender BeforeRenderFunc
+	BeforeCreate      BeforeCreateFunc
+	BeforeUpdate      BeforeUpdateFunc
+	BeforeDelete      BeforeDeleteFunc
+	BeforeRender      BeforeRenderFunc
+	BeforeQUeryRender BeforeQueryRenderFunc
 
-	modelElem  reflect.Type
 	jsonPKName string
 	gormPKName string
 	preloads   []string // for gorm preload
 
+	primaryKeys []WebObjectPrimaryField
+	uniqueKeys  []WebObjectPrimaryField
+	tableName   string
+
+	// Model type
+	modelElem reflect.Type
 	// Map json tag to struct field name. such as:
 	// UUID string `json:"id"` => {"id" : "UUID"}
 	jsonToFields map[string]string
@@ -84,9 +101,10 @@ type WebObject struct {
 }
 
 type Filter struct {
-	Name  string `json:"name"`
-	Op    string `json:"op"`
-	Value any    `json:"value"`
+	isTimeType bool   `json:"-"`
+	Name       string `json:"name"`
+	Op         string `json:"op"`
+	Value      any    `json:"value"`
 }
 
 type Order struct {
@@ -95,7 +113,8 @@ type Order struct {
 }
 
 type QueryForm struct {
-	Pagination   bool     `json:"pagination"`
+	Pagination bool `json:"pagination"`
+
 	Pos          int      `json:"pos"`
 	Limit        int      `json:"limit"`
 	Keyword      string   `json:"keyword,omitempty"`
@@ -105,12 +124,12 @@ type QueryForm struct {
 	searchFields []string `json:"-"` // for keyword
 }
 
-type QueryResult[T any] struct {
+type QueryResult struct {
 	Total   int    `json:"total,omitempty"`
 	Pos     int    `json:"pos,omitempty"`
 	Limit   int    `json:"limit,omitempty"`
 	Keyword string `json:"keyword,omitempty"`
-	Items   T      `json:"items"`
+	Items   []any  `json:"items"`
 }
 
 // GetQuery return the combined filter SQL statement.
@@ -136,6 +155,9 @@ func (f *Filter) GetQuery() string {
 		op = "<"
 	case "less_or_equal", "LESS_OR_EQUAL", "<=":
 		op = "<="
+	case "between", "BETWEEN": // for time range
+		op = "BETWEEN"
+		return fmt.Sprintf("`%s` BETWEEN ? AND ?", f.Name)
 	}
 
 	if op == "" {
@@ -161,14 +183,16 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 		return err
 	}
 
-	p := filepath.Join(obj.Group, obj.Name)
+	// p := filepath.Join(obj.Group, obj.Name)
+	p := obj.Name
 	allowMethods := obj.AllowMethods
 	if allowMethods == 0 {
 		allowMethods = GET | CREATE | EDIT | DELETE | QUERY | BATCH
 	}
 
+	primaryKeyPath := obj.BuildPrimaryPath(p)
 	if allowMethods&GET != 0 {
-		r.GET(filepath.Join(p, ":key"), func(c *gin.Context) {
+		r.GET(primaryKeyPath, func(c *gin.Context) {
 			handleGetObject(c, obj)
 		})
 	}
@@ -178,31 +202,31 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 		})
 	}
 	if allowMethods&EDIT != 0 {
-		r.PATCH(filepath.Join(p, ":key"), func(c *gin.Context) {
+		r.PATCH(primaryKeyPath, func(c *gin.Context) {
 			handleUpdateObject(c, obj)
 		})
 	}
 	if allowMethods&DELETE != 0 {
-		r.DELETE(filepath.Join(p, ":key"), func(c *gin.Context) {
+		r.DELETE(primaryKeyPath, func(c *gin.Context) {
 			handleDeleteObject(c, obj)
 		})
 	}
 
 	if allowMethods&QUERY != 0 {
 		r.POST(p, func(c *gin.Context) {
-			handleQueryObject(c, obj, DefaultPrepareQuery)
+			handleQueryObject(c, obj, obj.PrepareQuery)
 		})
 	}
 
-	if allowMethods&BATCH != 0 {
-		r.DELETE(p, func(c *gin.Context) {
-			handleBatchDelete(c, obj)
-		})
-	}
+	// if allowMethods&BATCH != 0 {
+	// 	r.DELETE(p, func(c *gin.Context) {
+	// 		handleBatchDelete(c, obj)
+	// 	})
+	// }
 
 	for i := 0; i < len(obj.Views); i++ {
 		v := &obj.Views[i]
-		if v.Name == "" {
+		if v.Path == "" {
 			return errors.New("with invalid view")
 		}
 		if v.Method == "" {
@@ -211,7 +235,7 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 		if v.Prepare == nil {
 			v.Prepare = DefaultPrepareQuery
 		}
-		r.Handle(v.Method, filepath.Join(p, v.Name), func(ctx *gin.Context) {
+		r.Handle(v.Method, filepath.Join(p, v.Path), func(ctx *gin.Context) {
 			handleQueryObject(ctx, obj, v.Prepare)
 		})
 	}
@@ -219,11 +243,41 @@ func (obj *WebObject) RegisterObject(r gin.IRoutes) error {
 	return nil
 }
 
-func RegisterObject(r gin.IRoutes, obj *WebObject) error {
+func (obj *WebObject) BuildPrimaryPath(prefix string) string {
+	var primaryKeyPath []string
+	for _, v := range obj.uniqueKeys {
+		primaryKeyPath = append(primaryKeyPath, ":"+v.JSONName)
+	}
+	return filepath.Join(prefix, filepath.Join(primaryKeyPath...))
+}
+
+func (obj *WebObject) getPrimaryValues(c *gin.Context) ([]string, error) {
+	var result []string
+	for _, field := range obj.uniqueKeys {
+		v := c.Param(field.JSONName)
+		if v == "" {
+			return nil, fmt.Errorf("invalid primary: %s", field.JSONName)
+		}
+		result = append(result, v)
+	}
+	return result, nil
+}
+
+func (obj *WebObject) buildPrimaryCondition(db *gorm.DB, keys []string) *gorm.DB {
+	var tx *gorm.DB
+	for i := 0; i < len(obj.uniqueKeys); i++ {
+		colName := obj.uniqueKeys[i].Name
+		col := db.NamingStrategy.ColumnName(obj.tableName, colName)
+		tx = db.Where(col, keys[i])
+	}
+	return tx
+}
+
+func RegisterObject(r *gin.RouterGroup, obj *WebObject) error {
 	return obj.RegisterObject(r)
 }
 
-func RegisterObjects(r gin.IRoutes, objs []WebObject) {
+func RegisterObjects(r *gin.RouterGroup, objs []WebObject) {
 	for idx := range objs {
 		obj := &objs[idx]
 		if err := obj.RegisterObject(r); err != nil {
@@ -234,28 +288,38 @@ func RegisterObjects(r gin.IRoutes, objs []WebObject) {
 
 // Build fill the properties of obj.
 func (obj *WebObject) Build() error {
-	if obj.GetDB == nil {
-		return fmt.Errorf("without db")
-	}
+	// if obj.GetDB == nil {
+	// 	return fmt.Errorf("without db")
+	// }
 
 	rt := reflect.TypeOf(obj.Model)
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 	}
+
 	obj.modelElem = rt
+	obj.tableName = obj.modelElem.Name()
 
 	if obj.Name == "" {
-		obj.Name = strings.ToLower(rt.Name())
-	}
-
-	obj.gormPKName = getPkColumnName(rt)
-	if obj.gormPKName == "" {
-		return fmt.Errorf("%s not has primary key", obj.Name)
+		obj.Name = strings.ToLower(obj.tableName)
 	}
 
 	obj.jsonToFields = make(map[string]string)
 	obj.jsonToKinds = make(map[string]reflect.Kind)
-	obj.parseFields(rt)
+	obj.parseFields(obj.modelElem)
+
+	if obj.primaryKeys != nil {
+		obj.uniqueKeys = obj.primaryKeys
+	}
+
+	if len(obj.uniqueKeys) == 0 && len(obj.primaryKeys) == 0 {
+		return fmt.Errorf("%s not has primaryKey", obj.Name)
+	}
+
+	// obj.gormPKName = getPkColumnName(obj.modelElem)
+	// if obj.gormPKName == "" {
+	// 	return fmt.Errorf("%s not has primary key", obj.Name)
+	// }
 
 	return nil
 }
@@ -268,15 +332,18 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
 			obj.parseFields(f.Type)
+			continue
 		}
 
 		jsonTag := f.Tag.Get("json")
 		if strings.Contains(jsonTag, ",") {
-			jsonTag = strings.Split(jsonTag, ",")[0]
+			jsonTag = strings.TrimSpace(strings.Split(jsonTag, ",")[0])
 		}
+
 		if jsonTag == "" {
 			jsonTag = f.Name
 		}
+
 		if jsonTag != "-" {
 			obj.jsonToFields[jsonTag] = f.Name
 			kind := f.Type.Kind()
@@ -286,41 +353,73 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 			obj.jsonToKinds[jsonTag] = kind
 		}
 
-		gormTag := f.Tag.Get("gorm")
+		gormTag := strings.ToLower(f.Tag.Get("gorm"))
 		if gormTag == "" || gormTag == "-" {
 			continue
 		}
 
+		pkField := WebObjectPrimaryField{
+			Name:      f.Name,
+			JSONName:  strings.Split(jsonTag, ",")[0],
+			Kind:      f.Type.Kind(),
+			IsPrimary: strings.Contains(gormTag, "primaryKey"),
+		}
+
+		if pkField.JSONName == "" {
+			pkField.JSONName = pkField.Name
+		}
+
+		if pkField.IsPrimary {
+			obj.primaryKeys = append(obj.primaryKeys, pkField)
+		} else if strings.Contains(gormTag, "unique") {
+			obj.uniqueKeys = append(obj.uniqueKeys, pkField)
+		}
+
 		// TODO: how to decide whether to preload?
-		if strings.Contains(gormTag, "foreignKey") ||
-			strings.Contains(gormTag, "references") ||
-			strings.Contains(gormTag, "many2many") {
+		// 	if strings.Contains(gormTag, "foreignKey") ||
+		// 		strings.Contains(gormTag, "references") ||
+		// 		strings.Contains(gormTag, "many2many") {
 
-			exist := false
-			for _, preload := range obj.preloads {
-				if preload == f.Name {
-					exist = true
-				}
-			}
+		// 		exist := false
+		// 		for _, preload := range obj.preloads {
+		// 			if preload == f.Name {
+		// 				exist = true
+		// 			}
+		// 		}
 
-			if !exist {
-				obj.preloads = append(obj.preloads, f.Name)
-			}
-		}
+		// 		if !exist {
+		// 			obj.preloads = append(obj.preloads, f.Name)
+		// 		}
+		// 	}
 
-		if strings.Contains(strings.ToLower(gormTag), "primarykey") {
-			if jsonTag == "-" || jsonTag == "" {
-				obj.jsonPKName = f.Name
-			} else {
-				obj.jsonPKName = jsonTag
-			}
-		}
+		// 	if strings.Contains(strings.ToLower(gormTag), "primarykey") {
+		// 		if jsonTag == "-" || jsonTag == "" {
+		// 			obj.jsonPKName = f.Name
+		// 		} else {
+		// 			obj.jsonPKName = jsonTag
+		// 		}
+		// 	}
+		// }
 	}
 }
 
+func getDbConnection(c *gin.Context, objFn GetDB, isCreate bool) (tx *gorm.DB) {
+	if objFn != nil {
+		tx = objFn(c, isCreate)
+	} else {
+		panic("without db")
+	}
+	return tx.Session(&gorm.Session{})
+}
+
 func handleGetObject(c *gin.Context, obj *WebObject) {
-	key := c.Param("key")
-	db := obj.GetDB(c, false)
+	keys, err := obj.getPrimaryValues(c)
+	if err != nil {
+		handleError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	db := getDbConnection(c, obj.GetDB, false)
 
 	val := reflect.New(obj.modelElem).Interface() // ptr
 
@@ -331,7 +430,7 @@ func handleGetObject(c *gin.Context, obj *WebObject) {
 		}
 	}
 
-	result := db.Where(obj.gormPKName, key).Take(val)
+	result := obj.buildPrimaryCondition(db, keys).Take(val)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			handleError(c, http.StatusNotFound, "not found")
@@ -748,3 +847,35 @@ func handleError(c *gin.Context, code int, err any) {
 		c.AbortWithStatusJSON(code, gin.H{"error": fmt.Sprintf("unknown error: %v", err)})
 	}
 }
+
+// type ErrorWithCode interface {
+// 	StatusCode() int
+// }
+
+// func AbortWithJSONError(c *gin.Context, code int, err error) {
+// 	var errWithFileNum error = err
+// 	if log.Flags()&(log.Lshortfile|log.Llongfile) != 0 {
+// 		var ok bool
+// 		_, file, line, ok := runtime.Caller(1)
+// 		if !ok {
+// 			file = "???"
+// 			line = 0
+// 		}
+// 		pos := strings.LastIndex(file, "/")
+// 		if log.Flags()&log.Lshortfile != 0 && pos >= 0 {
+// 			file = file[pos+1:]
+// 		}
+// 		errWithFileNum = fmt.Errorf("%s:%d: %w", file, line, err)
+// 	}
+// 	c.Error(errWithFileNum)
+
+// 	if e, ok := err.(ErrorWithCode); ok {
+// 		code = e.StatusCode()
+// 	}
+
+// 	if c.IsAborted() {
+// 		c.JSON(code, gin.H{"error": err.Error()})
+// 	} else {
+// 		c.AbortWithStatusJSON(code, gin.H{"error": err.Error()})
+// 	}
+// }

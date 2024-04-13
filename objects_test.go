@@ -793,7 +793,7 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 	db.Create(&tuser{ID: 3, Name: "clash", Age: 11})
 
 	webobject := WebObject{
-		Name:         "user",
+		Path:         "user",
 		Model:        tuser{},
 		EditFields:   []string{"Name"},
 		FilterFields: []string{"Name, Age"},
@@ -893,7 +893,7 @@ func TestQueryViews(t *testing.T) {
 
 	r := gin.Default()
 	webobject := WebObject{
-		Name:         "user",
+		Path:         "user",
 		Model:        tuser{},
 		EditFields:   []string{"Name"},
 		FilterFields: []string{"Name, Age"},
@@ -901,7 +901,7 @@ func TestQueryViews(t *testing.T) {
 		GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		Views: []QueryView{
 			{
-				Name:   "names",
+				Path:   "names",
 				Method: http.MethodGet,
 				Prepare: func(db *gorm.DB, ctx *gin.Context) (*gorm.DB, *QueryForm, error) {
 					return db, &QueryForm{Limit: -1, ViewFields: []string{"ID", "Name"}}, nil
@@ -937,7 +937,7 @@ func TestPagination(t *testing.T) {
 		db.AutoMigrate(tuser{})
 
 		RegisterObject(r, &WebObject{
-			Name:  "user",
+			Path:  "user",
 			Model: tuser{},
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		})
@@ -963,7 +963,7 @@ func TestPagination(t *testing.T) {
 		db.AutoMigrate(tuser{})
 
 		RegisterObject(r, &WebObject{
-			Name:  "user",
+			Path:  "user",
 			Model: tuser{},
 			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		})
@@ -996,7 +996,7 @@ func TestColumnName(t *testing.T) {
 	db.AutoMigrate(User{})
 
 	RegisterObject(r, &WebObject{
-		Name:         "user",
+		Path:         "user",
 		Model:        User{},
 		GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		FilterFields: []string{"Name"},
@@ -1035,7 +1035,7 @@ func TestCreateTime(t *testing.T) {
 	r := gin.Default()
 
 	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Name:       "user",
+		Path:       "user",
 		Model:      tmpUser{},
 		GetDB:      func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 		EditFields: []string{"Birthday"},
@@ -1103,7 +1103,7 @@ func TestEditTime(t *testing.T) {
 	r := gin.Default()
 
 	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Name:       "user",
+		Path:       "user",
 		Model:      tmpUser{},
 		GetDB:      func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 		EditFields: []string{"Birthday"},
@@ -1156,7 +1156,7 @@ func TestPreloadGet(t *testing.T) {
 	r := gin.Default()
 
 	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Name:  "user",
+		Path:  "user",
 		Model: User{},
 		GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 	})
@@ -1204,7 +1204,7 @@ func TestPreloadQuery(t *testing.T) {
 	r := gin.Default()
 
 	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Name:  "user",
+		Path:  "user",
 		Model: User{},
 		GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 	})

@@ -82,7 +82,7 @@ func TestRegisterSingleObject(t *testing.T) {
 	ar := gin.Default().Group("admin")
 
 	wo1 := WebObject{
-		Name:         "user",
+		Path:         "user",
 		Model:        User{},
 		EditFields:   []string{"Name"},
 		FilterFields: []string{"Name", "Age", "ID"},
@@ -94,7 +94,7 @@ func TestRegisterSingleObject(t *testing.T) {
 	}
 
 	wo2 := WebObject{
-		Name:  "product",
+		Path:  "product",
 		Model: Product{},
 		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
 			return db
@@ -125,7 +125,7 @@ func TestRegisterObjects(t *testing.T) {
 
 	wos := []WebObject{
 		{
-			Name:         "user1",
+			Path:         "user1",
 			Model:        User{},
 			EditFields:   []string{"Name"},
 			FilterFields: []string{"Name", "Age", "ID"},
@@ -136,7 +136,7 @@ func TestRegisterObjects(t *testing.T) {
 			},
 		},
 		{
-			Name:         "user2",
+			Path:         "user2",
 			Model:        User{},
 			EditFields:   []string{"Name"},
 			FilterFields: []string{"Name", "Age", "ID"},
