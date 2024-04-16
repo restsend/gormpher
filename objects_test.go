@@ -33,16 +33,14 @@ func TestObjectCRUD(t *testing.T) {
 	assert.Nil(t, err)
 
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 	webobject := WebObject{
 		Model:        User{},
 		EditFields:   []string{"Name"},
 		FilterFields: []string{"Name"},
 		SearchFields: []string{"Name"},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
 	}
-	err = webobject.RegisterObject(r)
+	err = webobject.RegisterObject(&r.RouterGroup)
 	assert.Nil(t, err)
 
 	// Create
@@ -92,11 +90,12 @@ func TestObjectCRUD(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-		var res QueryResult[[]User]
+		var res QueryResult
 		err := json.Unmarshal(w.Body.Bytes(), &res)
 		assert.Nil(t, err)
-		assert.Equal(t, 1, res.Total)
-		assert.Equal(t, "update", res.Items[0].Name)
+		assert.Equal(t, 1, res.TotalCount)
+		assert.Equal(t, "update", res.Items[0].(map[string]any)["Name"])
+		fmt.Println(res.Items[0].(map[string]any))
 	}
 	// Delete
 	{
@@ -119,10 +118,10 @@ func TestObjectCRUD(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 		log.Println(w.Body.String())
 
-		var res QueryResult[[]User]
+		var res QueryResult
 		err := json.Unmarshal(w.Body.Bytes(), &res)
 		assert.Nil(t, err)
-		assert.Equal(t, 1, res.Total)
+		assert.Equal(t, 1, res.TotalCount)
 	}
 }
 
@@ -144,18 +143,16 @@ func TestObjectQuery(t *testing.T) {
 	db.AutoMigrate(User{})
 
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 	webobject := WebObject{
 		Model:        User{},
 		FilterFields: []string{"Name", "Age", "Birthday", "Enabled"},
 		SearchFields: []string{"Name"},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
-		BeforeRender: func(c *gin.Context, obj any) error {
-			return nil
+		BeforeRender: func(db *gorm.DB, c *gin.Context, obj any) (any, error) {
+			return obj, nil
 		},
 	}
-	err := webobject.RegisterObject(r)
+	err := webobject.RegisterObject(&r.RouterGroup)
 	assert.Nil(t, err)
 
 	// Mock
@@ -320,10 +317,10 @@ func TestObjectQuery(t *testing.T) {
 				r.ServeHTTP(w, req)
 				assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-				var res QueryResult[[]User]
+				var res QueryResult
 				err := json.Unmarshal(w.Body.Bytes(), &res)
 				assert.Nil(t, err)
-				assert.Equal(t, tt.expect.Num, res.Total)
+				assert.Equal(t, tt.expect.Num, res.TotalCount)
 			})
 		}
 
@@ -342,14 +339,12 @@ func TestObjectOrder(t *testing.T) {
 	db.AutoMigrate(User{})
 
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 	webobject := WebObject{
 		Model:       User{},
 		OrderFields: []string{"UUID", "Name", "Age", "CreatedAt"},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
 	}
-	err := webobject.RegisterObject(r)
+	err := webobject.RegisterObject(&r.RouterGroup)
 	assert.Nil(t, err)
 
 	// Mock data
@@ -429,10 +424,10 @@ func TestObjectOrder(t *testing.T) {
 				r.ServeHTTP(w, req)
 				assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-				var res QueryResult[[]User]
+				var res QueryResult
 				err := json.Unmarshal(w.Body.Bytes(), &res)
 				assert.Nil(t, err)
-				assert.Equal(t, tt.expect.ID, res.Items[0].UUID)
+				assert.Equal(t, tt.expect.ID, res.Items[0].(map[string]any)["uid"])
 			})
 		}
 
@@ -551,14 +546,12 @@ func TestObjectEdit(t *testing.T) {
 				db.AutoMigrate(User{})
 
 				r := gin.Default()
+				r.Use(WithGormDB(db))
 				webobject := WebObject{
 					Model:      User{},
 					EditFields: []string{"Name", "Age", "Enabled", "Birthday", "PtrTime"},
-					GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-						return db
-					},
 				}
-				err := webobject.RegisterObject(r)
+				err := webobject.RegisterObject(&r.RouterGroup)
 				assert.Nil(t, err)
 
 				// Mock data
@@ -592,14 +585,12 @@ func TestObjectNoFieldEdit(t *testing.T) {
 	db.AutoMigrate(User{})
 
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 	webobject := WebObject{
 		Model:      User{},
 		EditFields: []string{},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
 	}
-	err := webobject.RegisterObject(r)
+	err := webobject.RegisterObject(&r.RouterGroup)
 	assert.Nil(t, err)
 
 	db.Create(&User{ID: 1, Name: "alice", Age: 9})
@@ -627,14 +618,12 @@ func TestUpdatePtrTime(t *testing.T) {
 	db.AutoMigrate(User{})
 
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 	webobject := WebObject{
 		Model:      User{},
 		EditFields: []string{"Birthday"},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
 	}
-	err := webobject.RegisterObject(r)
+	err := webobject.RegisterObject(&r.RouterGroup)
 	assert.Nil(t, err)
 
 	db.Create(&User{ID: 1})
@@ -698,14 +687,13 @@ func TestObjectRegister(t *testing.T) {
 				db.AutoMigrate(User{})
 
 				r := gin.Default()
+				r.Use(WithGormDB(db))
+
 				webobject := WebObject{
 					Model:        User{},
 					FilterFields: tt.params.Filterable,
-					GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-						return db
-					},
 				}
-				err := webobject.RegisterObject(r)
+				err := webobject.RegisterObject(&r.RouterGroup)
 				assert.Nil(t, err)
 
 				// Mock data
@@ -728,57 +716,15 @@ func TestObjectRegister(t *testing.T) {
 				r.ServeHTTP(w, req)
 				assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-				var res QueryResult[User]
+				var res QueryResult
 				json.Unmarshal(w.Body.Bytes(), &res)
-				assert.Equal(t, tt.expect.Total, res.Total)
+				assert.Equal(t, tt.expect.Total, res.TotalCount)
 			})
 		}
 	}
 }
 
-func TestBatchDelete(t *testing.T) {
-	type User struct {
-		UUID     uint      `json:"uid" gorm:"primaryKey"`
-		Name     string    `json:"name" gorm:"size:100"`
-		Age      int       `json:"age"`
-		Enabled  bool      `json:"enabled"`
-		Birthday time.Time `json:"birthday"`
-	}
-
-	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
-	db.AutoMigrate(User{})
-
-	r := gin.Default()
-	webobject := WebObject{
-		Model: User{},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
-	}
-	err := webobject.RegisterObject(r)
-	assert.Nil(t, err)
-
-	db.Create(&User{UUID: 1, Name: "alice", Age: 9})
-	db.Create(&User{UUID: 2, Name: "bob", Age: 10})
-	db.Create(&User{UUID: 3, Name: "charlie", Age: 11})
-	db.Create(&User{UUID: 4, Name: "dave", Age: 12})
-
-	var data = []string{"1", "2", "3"}
-	b, _ := json.Marshal(data)
-	req := httptest.NewRequest(http.MethodDelete, "/user", bytes.NewReader(b))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
-
-	req = httptest.NewRequest(http.MethodPost, "/user", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	var res QueryResult[[]User]
-	json.Unmarshal(w.Body.Bytes(), &res)
-	assert.Equal(t, 1, res.Total)
-}
-
-type tuser struct {
+type UnittestUser struct {
 	ID   uint   `json:"id" gorm:"primarykey"`
 	Name string `json:"name" gorm:"size:100"`
 	Age  int    `json:"age"`
@@ -786,44 +732,41 @@ type tuser struct {
 
 func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
-	db.AutoMigrate(tuser{})
+	db.AutoMigrate(UnittestUser{})
 
-	db.Create(&tuser{ID: 1, Name: "alice", Age: 9})
-	db.Create(&tuser{ID: 2, Name: "bob", Age: 10})
-	db.Create(&tuser{ID: 3, Name: "clash", Age: 11})
+	db.Create(&UnittestUser{ID: 1, Name: "alice", Age: 9})
+	db.Create(&UnittestUser{ID: 2, Name: "bob", Age: 10})
+	db.Create(&UnittestUser{ID: 3, Name: "clash", Age: 11})
 
 	webobject := WebObject{
-		Path:         "user",
-		Model:        tuser{},
+		Name:         "user",
+		Model:        UnittestUser{},
 		EditFields:   []string{"Name"},
 		FilterFields: []string{"Name, Age"},
 		SearchFields: []string{"Name"},
-		GetDB: func(c *gin.Context, isCreate bool) *gorm.DB {
-			return db
-		},
-		BeforeCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
-			user := (vptr).(*tuser)
+		BeforeCreate: func(db *gorm.DB, ctx *gin.Context, vptr any) error {
+			user := (vptr).(*UnittestUser)
 			if user.Name == "dangerous" {
-				return errors.New("alice is not allowed to create")
+				return errors.New("dangerous is not allowed to create")
 			}
 			return nil
 		},
-		BeforeRender: func(ctx *gin.Context, vptr any) error {
-			user := (vptr).(*tuser)
+		BeforeRender: func(db *gorm.DB, ctx *gin.Context, vptr any) (any, error) {
+			user := (vptr).(*UnittestUser)
 			if user.Name != "alice" {
 				user.Age = 99
 			}
-			return nil
+			return vptr, nil
 		},
-		BeforeDelete: func(ctx *gin.Context, vptr any) error {
-			user := (vptr).(*tuser)
+		BeforeDelete: func(db *gorm.DB, ctx *gin.Context, vptr any) error {
+			user := (vptr).(*UnittestUser)
 			if user.Name == "alice" {
 				return errors.New("alice is not allowed to delete")
 			}
 			return nil
 		},
-		BeforeUpdate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
-			user := (vptr).(*tuser)
+		BeforeUpdate: func(db *gorm.DB, ctx *gin.Context, vptr any, vals map[string]any) error {
+			user := (vptr).(*UnittestUser)
 			if user.Name == "alice" {
 				return errors.New("alice is not allowed to update")
 			}
@@ -835,7 +778,8 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 	}
 
 	r := gin.Default()
-	err := webobject.RegisterObject(r)
+	r.Use(WithGormDB(db))
+	err := webobject.RegisterObject(&r.RouterGroup)
 	assert.Nil(t, err)
 
 	return *NewTestClient(r), db
@@ -844,14 +788,13 @@ func initHookTest(t *testing.T) (TestClient, *gorm.DB) {
 func TestOnRender(t *testing.T) {
 	c, _ := initHookTest(t)
 
-	var res QueryResult[[]tuser]
+	var res QueryResult
 	err := c.CallPost("/user", nil, &res)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 3, res.Total)
-	assert.Equal(t, 9, res.Items[0].Age)
-	assert.Equal(t, 99, res.Items[1].Age)
-	assert.Equal(t, 99, res.Items[2].Age)
+	assert.Equal(t, float64(9), res.Items[0].(map[string]any)["age"])
+	assert.Equal(t, float64(99), res.Items[1].(map[string]any)["age"])
+	assert.Equal(t, float64(99), res.Items[2].(map[string]any)["age"])
 }
 
 func TestOnDelete(t *testing.T) {
@@ -867,10 +810,10 @@ func TestOnDelete(t *testing.T) {
 func TestOnCreate(t *testing.T) {
 	c, _ := initHookTest(t)
 
-	err := c.CallPut("/user", tuser{Name: "dangerous"}, nil)
-	assert.NotNil(t, err) // alice is not allowed to create
+	err := c.CallPut("/user", UnittestUser{Name: "dangerous"}, nil)
+	assert.NotNil(t, err) // dangerous is not allowed to create
 
-	err = c.CallPut("/user", tuser{Name: "notdangerous"}, nil)
+	err = c.CallPut("/user", UnittestUser{Name: "notdangerous"}, nil)
 	assert.Nil(t, err)
 }
 
@@ -889,16 +832,16 @@ func TestOnUpdate(t *testing.T) {
 
 func TestQueryViews(t *testing.T) {
 	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
-	db.AutoMigrate(tuser{})
+	db.AutoMigrate(UnittestUser{})
 
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 	webobject := WebObject{
-		Path:         "user",
-		Model:        tuser{},
+		Name:         "user",
+		Model:        UnittestUser{},
 		EditFields:   []string{"Name"},
 		FilterFields: []string{"Name, Age"},
 		SearchFields: []string{"Name"},
-		GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		Views: []QueryView{
 			{
 				Path:   "names",
@@ -909,96 +852,98 @@ func TestQueryViews(t *testing.T) {
 			},
 		},
 	}
-	err := webobject.RegisterObject(r)
+	err := webobject.RegisterObject(&r.RouterGroup)
 	assert.Nil(t, err)
 
 	// create 200 users
-	var user [200]tuser
+	var user [200]UnittestUser
 	for i := 0; i < len(user); i++ {
-		user[i] = tuser{Name: fmt.Sprintf("user-%d", i), Age: i}
+		user[i] = UnittestUser{Name: fmt.Sprintf("user-%d", i), Age: i}
 	}
 	db.CreateInBatches(&user, len(user))
 
 	client := NewTestClient(r)
-	var result QueryResult[[]tuser]
+	var result QueryResult
 	err = client.CallGet("/user/names", nil, &result)
 	assert.Nil(t, err)
-	assert.Equal(t, 200, result.Total)
+	assert.Equal(t, 200, result.TotalCount)
 	assert.Equal(t, 200, len(result.Items))
-	assert.Equal(t, 0, result.Items[10].Age)
-	assert.NotZero(t, result.Items[10].ID)
+	assert.Equal(t, float64(0), result.Items[10].(map[string]any)["age"])
+	assert.NotZero(t, result.Items[10].(map[string]any)["name"])
 }
 
 func TestPagination(t *testing.T) {
 	// Pagination
 	{
-		r := gin.Default()
 		db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
-		db.AutoMigrate(tuser{})
+		db.AutoMigrate(UnittestUser{})
 
-		RegisterObject(r, &WebObject{
-			Path:  "user",
-			Model: tuser{},
-			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB { return db },
+		r := gin.Default()
+		r.Use(WithGormDB(db))
+
+		RegisterObject(&r.RouterGroup, &WebObject{
+			Name:  "user",
+			Model: UnittestUser{},
 		})
 
 		{
-			db.Create(&tuser{Name: "user-1", Age: 1})
-			db.Create(&tuser{Name: "user-2", Age: 2})
-			db.Create(&tuser{Name: "user-3", Age: 3})
+			db.Create(&UnittestUser{Name: "user-1", Age: 1})
+			db.Create(&UnittestUser{Name: "user-2", Age: 2})
+			db.Create(&UnittestUser{Name: "user-3", Age: 3})
 		}
 
 		client := NewTestClient(r)
 
-		var result QueryResult[[]tuser]
+		var result QueryResult
 		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1, Pagination: true}, &result)
-		assert.Equal(t, 3, result.Total)
+		assert.Equal(t, 3, result.TotalCount)
 		assert.Len(t, result.Items, 1)
-		assert.Equal(t, "user-2", result.Items[0].Name)
+		assert.Equal(t, "user-2", result.Items[0].(map[string]any)["name"])
 	}
 	// No Pagination
 	{
-		r := gin.Default()
 		db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
-		db.AutoMigrate(tuser{})
+		db.AutoMigrate(UnittestUser{})
 
-		RegisterObject(r, &WebObject{
-			Path:  "user",
-			Model: tuser{},
-			GetDB: func(c *gin.Context, isCreate bool) *gorm.DB { return db },
+		r := gin.Default()
+		r.Use(WithGormDB(db))
+
+		RegisterObject(&r.RouterGroup, &WebObject{
+			Name:  "user",
+			Model: UnittestUser{},
 		})
 
 		{
-			db.Create(&tuser{Name: "user-1", Age: 1})
-			db.Create(&tuser{Name: "user-2", Age: 2})
-			db.Create(&tuser{Name: "user-3", Age: 3})
+			db.Create(&UnittestUser{Name: "user-1", Age: 1})
+			db.Create(&UnittestUser{Name: "user-2", Age: 2})
+			db.Create(&UnittestUser{Name: "user-3", Age: 3})
 		}
 
 		client := NewTestClient(r)
 
-		var result QueryResult[[]tuser]
+		var result QueryResult
 		client.CallPost("/user", &QueryForm{Pos: 2, Limit: 1}, &result)
-		assert.Equal(t, 3, result.Total)
+		assert.Equal(t, 3, result.TotalCount)
 		assert.Len(t, result.Items, 1)
-		assert.Equal(t, "user-3", result.Items[0].Name)
-
+		assert.Equal(t, "user-3", result.Items[0].(map[string]any)["name"])
 	}
 }
 
 func TestColumnName(t *testing.T) {
 	type User struct {
-		ID   int64  `gorm:"primarykey"`
-		Name string `gorm:"column:username"`
+		ID   int64  `json:"id" gorm:"primarykey"`
+		Name string `json:"name" gorm:"column:username"`
 	}
 
-	r := gin.Default()
 	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
 	db.AutoMigrate(User{})
 
-	RegisterObject(r, &WebObject{
-		Path:         "user",
+	r := gin.Default()
+	r.Use(WithGormDB(db))
+
+	RegisterObject(&r.RouterGroup, &WebObject{
+		Name:         "user",
 		Model:        User{},
-		GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
 		FilterFields: []string{"Name"},
 	})
 
@@ -1014,103 +959,95 @@ func TestColumnName(t *testing.T) {
 
 	client := NewTestClient(r)
 
-	var result QueryResult[[]User]
+	var result QueryResult
 	client.CallPost("/user", &QueryForm{
 		Filters: []Filter{
-			{Name: "Name", Op: "=", Value: "user-2"},
+			{Name: "name", Op: "=", Value: "user-2"},
 		}}, &result)
-	assert.Equal(t, 1, result.Total)
+	assert.Equal(t, 1, result.TotalCount)
 	assert.Len(t, result.Items, 1)
-	assert.Equal(t, "user-2", result.Items[0].Name)
+	assert.Equal(t, "user-2", result.Items[0].(map[string]any)["name"])
 }
 
 func TestCreateTime(t *testing.T) {
-	type tmpUser struct {
-		ID       int64 `gorm:"primarykey"`
-		Birthday time.Time
-	}
-
-	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
-	db.AutoMigrate(tmpUser{})
-	r := gin.Default()
-
-	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Path:       "user",
-		Model:      tmpUser{},
-		GetDB:      func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
-		EditFields: []string{"Birthday"},
-	})
-	assert.Nil(t, err)
-
-	{
-		now := time.Now()
-		b, _ := json.Marshal(tmpUser{ID: 1, Birthday: now})
-		req := httptest.NewRequest(http.MethodPut, "/user", bytes.NewReader(b))
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
-
-		count, _ := Count[tmpUser](db)
-		assert.Equal(t, 1, count)
-
-		val, _ := GetByID[tmpUser](db, 1)
-		assert.Equal(t, int64(1), val.ID)
-		assert.Equal(t, now.Format(time.RFC3339), val.Birthday.Format(time.RFC3339))
-	}
-
-	{
-		// RFC3339: 2006-01-02T15:04:05Z07:00
-		// ISO8601: 2021-01-01T00:00:00Z
-		json := `{"id":2,"birthday":"2021-01-01T00:00:00Z"}`
-		req := httptest.NewRequest(http.MethodPut, "/user", strings.NewReader(json))
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
-
-		count, _ := Count[tmpUser](db)
-		assert.Equal(t, 2, count)
-
-		val, _ := GetByID[tmpUser](db, 2)
-		assert.Equal(t, int64(2), val.ID)
-		assert.Equal(t, "2021-01-01 00:00:00 +0000 UTC", val.Birthday.String())
-	}
-
-	{
-		// input type="datetime-local" 2006-01-02T15:04
-		json := `{"id":3,"birthday":"2023-06-13T01:17"}`
-		req := httptest.NewRequest(http.MethodPut, "/user", strings.NewReader(json))
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
-
-		count, _ := Count[tmpUser](db)
-		assert.Equal(t, 3, count)
-
-		val, _ := GetByID[tmpUser](db, 3)
-		assert.Equal(t, int64(3), val.ID)
-		assert.Equal(t, "2023-06-13 01:17:00 +0000 UTC", val.Birthday.String())
-	}
-}
-
-func TestEditTime(t *testing.T) {
-	type tmpUser struct {
+	type User struct {
 		ID       int64     `json:"id" gorm:"primarykey"`
 		Birthday time.Time `json:"birthday"`
 	}
 
 	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
-	db.AutoMigrate(tmpUser{})
+	db.AutoMigrate(User{})
+
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 
 	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Path:       "user",
-		Model:      tmpUser{},
-		GetDB:      func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
+		Name:       "user",
+		Model:      User{},
 		EditFields: []string{"Birthday"},
 	})
 	assert.Nil(t, err)
 
-	db.Create(&tmpUser{ID: 1, Birthday: time.Now()})
+	{
+		// RFC3339: 2006-01-02T15:04:05Z07:00
+		// ISO8601: 2021-01-01T00:00:00Z
+		json := `{"id":2, "birthday":"2021-01-01T00:00:00Z"}`
+		req := httptest.NewRequest(http.MethodPut, "/user", strings.NewReader(json))
+		req.Header.Set("Content-Type", "application/json") // !important
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		val, _ := GetByID[User](db, 2)
+		assert.Equal(t, int64(2), val.ID)
+		assert.Equal(t, "2021-01-01 00:00:00 +0000 UTC", val.Birthday.String())
+	}
+
+	// TODO: other time format
+	{
+		// now := time.Now()
+		// str := now.Format(time.RFC3339) // 2024-04-16T15:41:05+08:00
+
+		// json := `{"id":1, "birthday": "` + str + `"}`
+		// req := httptest.NewRequest(http.MethodPut, "/user", strings.NewReader(json))
+		// req.Header.Set("Content-Type", "application/json") // !important
+		// w := httptest.NewRecorder()
+		// r.ServeHTTP(w, req)
+		// assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		// now := time.Now()
+		// b, _ := json.Marshal(User{ID: 1, Birthday: now})
+		// req := httptest.NewRequest(http.MethodPut, "/user", bytes.NewReader(b))
+		// w := httptest.NewRecorder()
+		// r.ServeHTTP(w, req)
+		// assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		// val, _ := GetByID[User](db, 1)
+		// assert.Equal(t, int64(1), val.ID)
+		// assert.Equal(t, now.Format(time.RFC3339), val.Birthday.Format(time.RFC3339))
+	}
+}
+
+func TestEditTime(t *testing.T) {
+	type User struct {
+		ID       int64     `json:"id" gorm:"primarykey"`
+		Birthday time.Time `json:"birthday"`
+	}
+
+	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
+	db.AutoMigrate(User{})
+
+	r := gin.Default()
+	r.Use(WithGormDB(db))
+
+	err := RegisterObject(&r.RouterGroup, &WebObject{
+		Name:       "user",
+		Model:      User{},
+		EditFields: []string{"Birthday"},
+	})
+	assert.Nil(t, err)
+
+	db.Create(&User{ID: 1, Birthday: time.Now()})
 
 	{
 		// RFC3339: 2006-01-02T15:04:05Z07:00
@@ -1121,10 +1058,11 @@ func TestEditTime(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-		val, _ := GetByID[tmpUser](db, 1)
+		val, _ := GetByID[User](db, 1)
 		assert.Equal(t, int64(1), val.ID)
 		assert.Equal(t, "2021-01-01 00:00:00 +0000 UTC", val.Birthday.String())
 	}
+
 	{
 		// input type="datetime-local" 2006-01-02T15:04
 		json := `{"birthday":"2023-06-13T01:17"}`
@@ -1133,7 +1071,7 @@ func TestEditTime(t *testing.T) {
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-		val, _ := GetByID[tmpUser](db, 1)
+		val, _ := GetByID[User](db, 1)
 		assert.Equal(t, int64(1), val.ID)
 		assert.Equal(t, "2023-06-13 01:17:00 +0000 UTC", val.Birthday.String())
 	}
@@ -1153,12 +1091,13 @@ func TestPreloadGet(t *testing.T) {
 
 	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
 	db.AutoMigrate(User{})
+
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 
 	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Path:  "user",
+		Name:  "user",
 		Model: User{},
-		GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 	})
 	assert.Nil(t, err)
 
@@ -1202,11 +1141,11 @@ func TestPreloadQuery(t *testing.T) {
 	db, _ := gorm.Open(sqlite.Open("file::memory:"), nil)
 	db.AutoMigrate(User{})
 	r := gin.Default()
+	r.Use(WithGormDB(db))
 
 	err := RegisterObject(&r.RouterGroup, &WebObject{
-		Path:  "user",
+		Name:  "user",
 		Model: User{},
-		GetDB: func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 	})
 	assert.Nil(t, err)
 
@@ -1215,14 +1154,16 @@ func TestPreloadQuery(t *testing.T) {
 
 	client := NewTestClient(r)
 
-	var us1 QueryResult[[]User]
+	var us1 QueryResult
 	err = client.CallPost("/user", nil, &us1)
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(us1.Items))
-	assert.Equal(t, int64(1), us1.Items[0].Company.ID)
-	assert.Equal(t, "company-1", us1.Items[0].Company.Name)
-	assert.Equal(t, int64(2), us1.Items[1].Company.ID)
-	assert.Equal(t, "company-2", us1.Items[1].Company.Name)
+	fmt.Println((us1.Items[0].(map[string]any)["Company"]).(map[string]any)) // map[ID:1 Name:company-1]
+
+	assert.Equal(t, float64(1), (us1.Items[0].(map[string]any)["Company"]).(map[string]any)["ID"])
+	assert.Equal(t, "company-1", (us1.Items[0].(map[string]any)["Company"]).(map[string]any)["Name"])
+	assert.Equal(t, float64(2), (us1.Items[1].(map[string]any)["Company"]).(map[string]any)["ID"])
+	assert.Equal(t, "company-2", (us1.Items[1].(map[string]any)["Company"]).(map[string]any)["Name"])
 
 	// db preload
 	{

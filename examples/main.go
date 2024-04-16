@@ -49,10 +49,11 @@ func main() {
 	db.AutoMigrate(Product{}, User{})
 
 	r := gin.Default()
+	r.Use(gormpher.WithGormDB(db))
 
 	objs := GetWebObjects(db)
 	// visit API: http://localhost:8890/api
-	gormpher.RegisterObjects(r, objs)
+	gormpher.RegisterObjects(&r.RouterGroup, objs)
 	// visit Admin: http://localhost:8890/admin/v1
 	gormpher.RegisterObjectsWithAdmin(r.Group("admin"), objs)
 
@@ -70,13 +71,12 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/user/:key
 		// DELETE http://localhost:8890/user
 		{
-			Path:         "user",
+			Name:         "user",
 			Model:        &User{},
 			SearchFields: []string{"Name", "Enabled"},
 			EditFields:   []string{"Name", "Age", "Enabled", "LastLogin"},
 			FilterFields: []string{"Name", "CreatedAt", "UpdatedAt", "Age", "Enabled"},
 			OrderFields:  []string{"CreatedAt", "Age", "Enabled"},
-			GetDB:        func(ctx *gin.Context, isCreate bool) *gorm.DB { return db },
 		},
 		// Advanced Demo
 		// Check API File: product.http
@@ -87,14 +87,13 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		// DELETE http://localhost:8890/product/:key
 		// DELETE http://localhost:8890/product
 		{
-			Path:         "product",
+			Name:         "product",
 			Model:        &Product{},
 			SearchFields: []string{"Name"},
 			EditFields:   []string{"Name", "Enabled", "Model"},
 			FilterFields: []string{"Name", "CreatedAt", "Enabled"},
 			OrderFields:  []string{"CreatedAt"},
-			GetDB:        func(c *gin.Context, isCreate bool) *gorm.DB { return db },
-			BeforeCreate: func(ctx *gin.Context, vptr any, vals map[string]any) error {
+			BeforeCreate: func(db *gorm.DB, ctx *gin.Context, vptr any) error {
 				p := (vptr).(*Product)
 				p.UUID = MockUUID(8)
 
@@ -107,7 +106,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 				p.GroupID = int(group.ID)
 				return nil
 			},
-			BeforeDelete: func(ctx *gin.Context, vptr any) error {
+			BeforeDelete: func(db *gorm.DB, ctx *gin.Context, vptr any) error {
 				p := (vptr).(*Product)
 				if p.Enabled {
 					return errors.New("product is enabled, can not delete")
