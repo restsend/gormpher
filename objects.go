@@ -60,6 +60,7 @@ type (
 
 type QueryView struct {
 	Path    string `json:"path"`
+	Desc    string `json:"desc"` // for apidoc
 	Method  string `json:"method"`
 	Prepare PrepareQuery
 }
@@ -78,6 +79,10 @@ type WebObject struct {
 	GetDB        GetDB
 	PrepareQuery PrepareQuery
 	AllowMethods int
+
+	// for apidoc
+	Desc         string
+	AuthRequired bool
 
 	// for query
 	EditFields   []string
@@ -384,18 +389,8 @@ func (obj *WebObject) parseFields(rt reflect.Type) {
 		}
 
 		if pkField.IsPrimary {
-			// for _, v := range obj.primaryKeys {
-			// 	if v.JSONName == pkField.JSONName {
-			// 		return
-			// 	}
-			// }
 			obj.primaryKeys = append(obj.primaryKeys, pkField)
 		} else if strings.Contains(gormTag, "unique") {
-			// for _, v := range obj.uniqueKeys {
-			// 	if v.JSONName == pkField.JSONName {
-			// 		return
-			// 	}
-			// }
 			obj.uniqueKeys = append(obj.uniqueKeys, pkField)
 		}
 	}

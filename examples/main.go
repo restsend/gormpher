@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/restsend/gormpher"
+	"github.com/restsend/gormpher/apidocs"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -56,6 +57,8 @@ func main() {
 	gormpher.RegisterObjects(&r.RouterGroup, objs)
 	// visit Admin: http://localhost:8890/admin/v1
 	gormpher.RegisterObjectsWithAdmin(r.Group("admin"), objs)
+	// visit API Docs: http://localhost:8890/apidocs
+	RegisterApiDocs(r, "/apidocs", objs)
 
 	r.Run(addr)
 }
@@ -73,6 +76,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		{
 			Name:         "user",
 			Model:        &User{},
+			Desc:         "User Management",
 			SearchFields: []string{"Name", "Enabled"},
 			EditFields:   []string{"Name", "Age", "Enabled", "LastLogin"},
 			FilterFields: []string{"Name", "CreatedAt", "UpdatedAt", "Age", "Enabled"},
@@ -89,6 +93,7 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 		{
 			Name:         "product",
 			Model:        &Product{},
+			Desc:         "Product Management",
 			SearchFields: []string{"Name"},
 			EditFields:   []string{"Name", "Enabled", "Model"},
 			FilterFields: []string{"Name", "CreatedAt", "Enabled"},
@@ -134,6 +139,14 @@ func GetWebObjects(db *gorm.DB) []gormpher.WebObject {
 			},
 		},
 	}
+}
+
+func RegisterApiDocs(r *gin.Engine, prefix string, objs []gormpher.WebObject) {
+	webobjectDocs := make([]apidocs.WebObjectDoc, 0)
+	for _, obj := range objs {
+		webobjectDocs = append(webobjectDocs, apidocs.GetWebObjectDocDefine(prefix, obj))
+	}
+	apidocs.RegisterHandler("apidocs", r, []apidocs.UriDoc{}, webobjectDocs)
 }
 
 func MockUUID(n int) string {
